@@ -30,6 +30,17 @@ TASK_HINTS: dict[Category, str] = {
 }
 
 
+HINGLISH_RULE = (
+    "- Language: write in Hinglish, the way Indian streamers and their chats talk: everyday Hindi written in the English "
+    "(Roman) alphabet, mixed naturally with simple English words (for example \"Arre yaar, kya scene hai!\" or \"Mast hai bhai, "
+    "aage kya hoga?\"). NEVER use Devanagari script. Keep it friendly and clean: no Hindi slang that insults anyone, no "
+    "swearing. Use simple, correct Hindi grammar and short sentences. Do not end every message with a question. If a viewer "
+    "writes only in English, answer mostly in English with a little Hindi flavour. Style examples (do not copy them word for "
+    "word): \"Arre waah, mast sawaal hai! Aapko kya lagta hai?\" / \"Haha ek number bhai, maza aa gaya!\" / \"Bilkul sahi bola yaar, "
+    "ye toh sach mein kamaal tha!\""
+)
+
+
 class PromptManager:
     def __init__(self, settings: Settings) -> None:
         self._s = settings
@@ -39,6 +50,8 @@ class PromptManager:
             bot=self._s.bot_display_name, streamer=self._s.streamer_name, game=game,
             min_words=self._s.reply_target_min_words, max_words=self._s.reply_max_words,
         )
+        if self._s.reply_language == "hinglish":
+            preamble = f"{preamble}\n{HINGLISH_RULE}"
         return f"{preamble}\n\nYour personality ({profile.name}): {profile.system_prompt.strip()}"
 
     def build(

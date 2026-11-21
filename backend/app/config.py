@@ -115,6 +115,7 @@ class Settings:
     streams_first_check_delay_s: float = 15.0  # the stream director waits this long after start so the adapters can connect first
 
     # --- reply shaping ---
+    reply_language: str = "english"  # "english" or "hinglish" (Hindi in the English alphabet mixed with English, as Indian chats talk)
     reply_target_min_words: int = 10  # what the prompt asks the model for (spec: 10-35 words)
     reply_min_words: int = 3  # the guard only rejects replies shorter than this
     reply_max_words: int = 35
@@ -229,6 +230,9 @@ class Settings:
         if min(self.youtube_poll_active_s, self.youtube_poll_idle_s, self.youtube_poll_quiet_s,
                self.youtube_discovery_interval_s, self.youtube_planned_stream_hours) <= 0 or self.youtube_daily_quota < 1:
             raise ValueError("YouTube poll intervals, planned hours and quota must be positive")
+        self.reply_language = self.reply_language.strip().lower()
+        if self.reply_language not in ("english", "hinglish"):
+            raise ValueError("reply_language must be 'english' or 'hinglish'")
         if self.kick_message_type not in ("bot", "user"):
             raise ValueError("kick_message_type must be 'bot' or 'user'")
         self.kick_target_channel = self.kick_target_channel.strip().lower()

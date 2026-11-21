@@ -18,13 +18,15 @@ from .normalizer import compare_key, word_count
 
 _I = re.IGNORECASE
 GREETING_RE = re.compile(
-    r"^(?:hi+|hello+|hey+|heya|hiya|yo+|sup|wassup|what'?s up|hola|namaste|gm|howdy|greetings"
+    r"^(?:hi+|hello+|hey+|heya|hiya|yo+|sup|wassup|what'?s up|hola|namaste|namaskar|pranam|ram\s+ram|salaam|salam"
+    r"|jai\s+(?:shree\s+)?(?:ram|krishna|mata\s+di)|sat\s+sri\s+akal|gm|howdy|greetings"
     r"|good\s+(?:morning|afternoon|evening|night))\b",
     _I,
 )
 QUESTION_START_RE = re.compile(
     r"^(?:what|whats|what's|how|why|who|whom|whose|where|when|which|can|could|would|will|should"
-    r"|do|does|did|is|are|was|were|has|have|anyone|anybody)\b",
+    r"|do|does|did|is|are|was|were|has|have|anyone|anybody"
+    r"|kya|kaun|kon|kab|kahan|kidhar|kaise|kyun|kyu|kyon|kitna|kitne|kitni|konsa|kaunsa|koi)\b",  # Hinglish question words
     _I,
 )
 SUGGESTION_RE = re.compile(

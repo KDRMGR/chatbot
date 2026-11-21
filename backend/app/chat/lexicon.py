@@ -50,12 +50,23 @@ _PROFANITY = re.compile(
     r"\b(?:fuck\w*|shit\w*|bitch\w*|asshole|cunt|bastard|whore|slut|dickhead|wanker|piss\s?off)\b", _I
 )
 
+# Hindi / Hinglish (Hindi in the English alphabet) strong abuse, common spellings. Deliberately the explicit terms only: mild
+# everyday words (yaar, saala as banter, pagal) are allowed, and the two-letter abbreviations are NOT listed on purpose
+# ("bc" is also plain English for "because"). Used both ways: such a viewer message is ignored (never sent to the model), and
+# the bot may never say any of it. More terms: STEALTHBOT_EXTRA_LEXICON_FILE.
+_HINGLISH_ABUSE = re.compile(
+    r"\b(?:m[ae]d[ae]?r+c+h+o+d+\w*|b(?:eh|h|ah)?e?n+c+h+o+d+\w*|bhosd\w*|bhosr\w*|chut(?:iy[ae]\w*|\b)|gaa?nd+u+\w*|gaa?nd\b"
+    r"|lun+d\b|laud[ae]\b|randi+\w*|randwa\w*|haraa?m(?:i\w*|khor\w*|zad\w*)|kutt[ae]\b|kutiy[ae]\w*|kamin[ae]\b"
+    r"|teri\s+(?:maa|ma|mummy|behen|bahen)\b|maa\s+ki\s+aankh)\b",
+    _I,
+)
+
 
 @dataclass
 class Lexicon:
-    abuse_in: list[re.Pattern[str]] = field(default_factory=lambda: list(ABUSE_PATTERNS))
+    abuse_in: list[re.Pattern[str]] = field(default_factory=lambda: [*ABUSE_PATTERNS, _HINGLISH_ABUSE])
     injection_in: list[re.Pattern[str]] = field(default_factory=lambda: list(INJECTION_PATTERNS))
-    banned_out: list[re.Pattern[str]] = field(default_factory=lambda: [_PROFANITY, *ABUSE_PATTERNS])
+    banned_out: list[re.Pattern[str]] = field(default_factory=lambda: [_PROFANITY, _HINGLISH_ABUSE, *ABUSE_PATTERNS])
 
     def matches_abuse(self, text: str) -> bool:
         return any(p.search(text) for p in self.abuse_in)
