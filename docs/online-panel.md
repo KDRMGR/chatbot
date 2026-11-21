@@ -73,8 +73,22 @@ tab only). `web/config.js` holds the project address and the **publishable** key
 
 ## Setup
 1. **Done:** schema applied, sign-ups off, bot user created and stored (`scripts\relay_login.py`), relay switched on in `backend\.env`.
-2. **Next, your emails:** create the admin and streamer users (invite or temporary password + profile row), then they choose their own
-   password from the email link. Turn on two-factor for the admin.
+2. **Create the admin and streamer logins in the Supabase dashboard** (supabase.com/dashboard, project `chatbot`):
+   - *Authentication > Users > Add user > Create new user*: the e-mail and password, **tick "Auto Confirm User"**, create. Do it once
+     for the admin and once for the streamer.
+   - The project requires passwords of **at least 12 characters** (set during setup). A shorter password is refused until you lower
+     *Authentication > Sign In / Providers > Email > Minimum password length*. Short passwords are easy to guess and the page is
+     reachable from the internet.
+   - Use an address you own, or an `@example.com` one nobody can receive: on a public mail service the mailbox owner could use
+     "Forgot password" on the page and take the login over.
+   - Give each user a role (*SQL Editor*): nobody can change roles through the API, so without this a login has no access:
+     ```sql
+     insert into public.profiles (user_id, role) select id, 'admin' from auth.users where email = 'ADMIN-EMAIL'
+       on conflict (user_id) do update set role = excluded.role;
+     insert into public.profiles (user_id, role) select id, 'streamer' from auth.users where email = 'STREAMER-EMAIL'
+       on conflict (user_id) do update set role = excluded.role;
+     ```
+   - Turn on two-factor for the admin if you can.
 3. **Vercel:** import the GitHub repository, set **Root Directory = `web`**, Framework Preset = *Other*, no build command, then set
    Supabase's *Site URL* (and the redirect allow-list) to the Vercel address so email links return to the page.
 4. **Rotate the Supabase personal access token** that was used for setup (it controls the whole account), and keep it out of OneDrive.
