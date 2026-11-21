@@ -47,6 +47,8 @@ from .platforms.youtube.quota import QuotaTracker
 from .scheduler.engagement import EngagementScheduler
 from .streams.director import StreamDirector
 from .knowledge.topic import TopicBriefing
+from .relay.service import RelayService
+from .relay.supabase import SupabaseClient
 from .security.credential_store import CredentialStore
 from .services.controls import RuntimeControls
 from .services.maintenance import run_gc_loop
@@ -83,12 +85,13 @@ class Container:
     ingest: Any = None  # what platform adapters call for every incoming message (the dashboard's Connect button needs it)
     streams: Any = None  # StreamDirector (which stream the bot comments in)
     topic: Any = None  # TopicBriefing (what the stream is about: game name + a short background note)
+    relay: Any = None  # RelayService (online panel through Supabase), when enabled
 
 
 def create_app(
     settings: Settings | None = None, *, ollama_transport: httpx.AsyncBaseTransport | None = None,
     youtube_transport: httpx.AsyncBaseTransport | None = None, kick_transport: httpx.AsyncBaseTransport | None = None,
-    topic_transport: httpx.AsyncBaseTransport | None = None,
+    topic_transport: httpx.AsyncBaseTransport | None = None, relay_transport: httpx.AsyncBaseTransport | None = None,
 ) -> Starlette:
     cfg = settings or get_settings()
 
@@ -220,6 +223,12 @@ def create_app(
             api_token=load_or_create_token(cfg.api_token_file), youtube=youtube, scheduler=scheduler,
             system_stats=SystemStats(), streams=director, topic=topic,
         )
+        relay: RelayService | None = None
+        if cfg.relay_enabled:  # the online panel: the bot calls OUT to Supabase; nothing listens for the internet
+            assert cfg.data_dir is not None
+            relay = RelayService(app, cfg, SupabaseClient(cfg.supabase_url, cfg.supabase_publishable_key,
+                                                          CredentialStore(cfg.data_dir), transport=relay_transport))
+            app.state.container.relay = relay
 
         async def ingest(message):  # noqa: ANN001, ANN202 - what platform adapters call for every incoming message
             await processor.submit(message, wait=False)
@@ -241,6 +250,8 @@ def create_app(
             asyncio.create_task(director.run(), name="stream-director"),
             asyncio.create_task(topic.startup_refresh(), name="topic-lookup"),  # one web lookup at start; failure is harmless
         ]
+        if relay is not None:
+            background.append(asyncio.create_task(relay.run(), name="online-panel-relay"))
         logger.info("Ready on http://%s:%s (API token file: %s)", cfg.host, cfg.port, cfg.api_token_file)
         try:
             yield
@@ -249,6 +260,8 @@ def create_app(
             for task in background:
                 task.cancel()
             await asyncio.gather(*background, return_exceptions=True)
+            if relay is not None:
+                await relay.aclose()
             for adapter in adapters.values():
                 await adapter.stop()
             await processor.stop()

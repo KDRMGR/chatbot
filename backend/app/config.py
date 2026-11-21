@@ -29,6 +29,21 @@ def default_state_dir() -> Path:
     return (Path(base) if base else Path.home()) / "stealthbot"
 
 
+def _jwt_role(key: str) -> str | None:
+    """The ``role`` claim of a legacy-style JWT key (anon / service_role), or None if the key is not a JWT. No signature check:
+    this only stops a powerful key from being pasted where a public one belongs."""
+    parts = key.split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        import base64
+
+        payload = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
+    except (ValueError, TypeError):
+        return None
+    return payload.get("role") if isinstance(payload, dict) else None
+
+
 @dataclass
 class RateLimitConfig:
     """Per-platform outgoing safeguards. Initial values are conservative defaults, NOT platform guarantees."""
@@ -70,6 +85,14 @@ class Settings:
     bot_display_name: str = "StealthBot"
     streamer_name: str = "StealthModeGG"
     current_game: str = "GTA 6"
+    # --- online panel relay (Supabase): the bot calls OUT, nothing inbound; see docs/online-panel.md ---
+    relay_enabled: bool = False
+    supabase_url: str = ""  # https://<project-ref>.supabase.co
+    supabase_publishable_key: str = ""  # the PUBLIC key (sb_publishable_... or the legacy anon key); never a secret/service key
+    relay_poll_s: float = 2.0  # how often the bot looks for new commands
+    relay_status_s: float = 3.0  # how often it publishes its status
+    relay_feed_items: int = 15  # recent chat lines included in the status
+    relay_command_max_age_s: float = 300.0  # a command older than this is rejected (a stale "resume" must not run after downtime)
     # --- background knowledge about the game / show (Wikipedia; only the game name is sent, no key, no AI cost) ---
     topic_lookup_enabled: bool = True
     topic_search_hint: str = ""  # extra search words, e.g. "Hindi TV show" (the lookup uses these INSTEAD of the game name when set)
@@ -250,6 +273,19 @@ class Settings:
             raise ValueError("kick_webhook_tolerance_s and kick_resubscribe_interval_s must be positive")
         if self.stats_flush_interval_s <= 0 or self.max_queue_age_s <= 0:
             raise ValueError("stats_flush_interval_s and max_queue_age_s must be positive")
+        self.supabase_url = self.supabase_url.strip().rstrip("/")
+        self.supabase_publishable_key = self.supabase_publishable_key.strip()
+        if self.supabase_url and not re.fullmatch(r"https://[a-z0-9]{3,40}\.supabase\.co", self.supabase_url):
+            raise ValueError("supabase_url must look like https://<project-ref>.supabase.co")
+        if self.supabase_publishable_key and (len(self.supabase_publishable_key) < 20 or re.search(r"\s", self.supabase_publishable_key)
+                                              or self.supabase_publishable_key.startswith("sb_secret_")):
+            raise ValueError("supabase_publishable_key must be the PUBLIC key (never an sb_secret_ or service_role key)")
+        if _jwt_role(self.supabase_publishable_key) == "service_role":
+            raise ValueError("supabase_publishable_key is a service_role key: use the public key (anon / sb_publishable_), never that one")
+        if self.relay_enabled and not (self.supabase_url and self.supabase_publishable_key):
+            raise ValueError("relay_enabled needs supabase_url and supabase_publishable_key")
+        if min(self.relay_poll_s, self.relay_status_s) < 0.5 or not 0 <= self.relay_feed_items <= 50 or self.relay_command_max_age_s <= 0:
+            raise ValueError("relay_poll_s and relay_status_s must be at least 0.5, relay_feed_items 0-50, relay_command_max_age_s positive")
         if not re.fullmatch(r"[a-z]{2,3}", self.topic_wiki_lang):
             raise ValueError("topic_wiki_lang must be a Wikipedia language code such as 'en' or 'hi'")
         if self.topic_contact and not re.fullmatch(r"https://[^\s;()]{4,100}|[^@\s;()]{1,64}@[^@\s;()]{3,64}", self.topic_contact):

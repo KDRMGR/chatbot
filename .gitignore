@@ -4,7 +4,12 @@ backend/.env
 *.env
 !*.env.example
 !.env.example
-*supabase*
+supabase.env
+*.supabase.env
+.env.supabase
+supabase/.env*
+supabase/.temp/
+supabase/.branches/
 *token*
 *secret*
 *.dpapi

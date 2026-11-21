@@ -444,6 +444,13 @@ async def platform_connect(request: Request) -> JSONResponse:
     return JSONResponse({"platform": name, "state": adapter.status().state.value})
 
 
+# ---------------------------------------------------------------------------- online panel relay
+@protected
+async def relay_status(request: Request) -> JSONResponse:
+    relay = _c(request).relay
+    return JSONResponse(relay.public_state() if relay is not None else {"enabled": False})
+
+
 # ---------------------------------------------------------------------------- what the stream is about (game + background note)
 @protected
 async def topic_status(request: Request) -> JSONResponse:
@@ -659,6 +666,7 @@ routes = [
     Route("/api/rate-limits/{platform}", change_rate_limits, methods=["POST"]),
     Route("/api/platforms/{name}/disconnect", platform_disconnect, methods=["POST"]),
     Route("/api/platforms/{name}/connect", platform_connect, methods=["POST"]),
+    Route("/api/relay", relay_status, methods=["GET"]),
     Route("/api/topic", topic_status, methods=["GET"]),
     Route("/api/topic", topic_change, methods=["POST"]),
     Route("/api/streams", streams_status, methods=["GET"]),
