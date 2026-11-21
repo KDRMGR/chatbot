@@ -169,7 +169,9 @@ async def test_say_is_validated_and_uses_the_handler_when_one_is_set(make_app_cl
         seen.append((text, ctx))
         return {"posted": True}
 
+    assert svc.public_state()["say_enabled"] is False  # the web page reads this to enable or disable the hold-to-speak button
     svc.say_handler = handler
+    assert svc.public_state()["say_enabled"] is True
     ok = fake.add_command("say", {"text": "  Namaste doston!  ", "lang": "hi-IN"}, by=STREAMER_ID)
     empty = fake.add_command("say", {"text": "   "}, by=STREAMER_ID)
     long = fake.add_command("say", {"text": "x" * 501}, by=STREAMER_ID)

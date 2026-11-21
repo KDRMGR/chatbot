@@ -1,8 +1,14 @@
 # Online panel through Supabase (Vercel-hosted web page, login with roles)
 
-**Status (2026-11-22): the bot side and the database design are built and tested against a fake Supabase (21 tests, 14 deliberate-break
-checks). NOT done: applying the schema to your Supabase project, creating the logins, the web page itself, and the Vercel deploy.
-Nothing has been changed in your Supabase project yet (only read-only calls were made to look at it).**
+**Status (2026-11-22):**
+- **Done and verified live:** the schema is applied to the Supabase project `chatbot` (3 tables, row-level security, grants); sign-ups
+  are switched off and passwords need 12+ characters; the bot's own login (role `bot`) exists and is stored encrypted on this PC; the
+  relay runs inside the bot and is connected (status published every 3 s). A live test with three throwaway users (admin, streamer,
+  stranger; deleted afterwards) passed **22 of 22** checks: who can read/send/forge what, and a real round trip through the running bot.
+- **Built and tested locally (not deployed):** the web page in `web/` (no libraries): sign-in, invite/password-reset link, status,
+  controls, approvals, streams, topic, live chat, command log, hold-to-speak card. Tested in a browser against a local fake of Supabase.
+- **NOT done:** the real admin and streamer logins (need their email addresses), the Vercel deploy, and what hold-to-speak does with the
+  words (the button stays off; the bot refuses `say` until that is decided).
 
 ## Why a relay and not a tunnel
 The control API stays **loopback only**. Nothing on your PC listens for the internet. Instead the bot calls **out** to Supabase:
@@ -50,12 +56,19 @@ chat-permission sign-in as that account), hand it to the AI as a message from th
 label. Until then the relay answers `say` with "voice replies are not switched on yet". The browser sends the audio to its vendor's speech
 service (local engines are blocked on this PC by Windows Smart App Control).
 
-## Setup (when the cloud steps are approved)
-1. Apply `supabase/schema.sql` to the project; switch off sign-ups; create the three users and their profiles (admin, streamer, bot).
-2. Put the project URL and the **public** key in `backend\.env`, run
-   `& "$env:LOCALAPPDATA\stealthbot\venv\Scripts\python.exe" scripts\relay_login.py --email <the bot's email>`, set
-   `STEALTHBOT_RELAY_ENABLED=true`, restart the bot.
-3. Build and deploy the web page to Vercel (connect the GitHub repository), then set the project's site URL so password links return there.
+## The web page (`web/`)
+Plain HTML, CSS and JavaScript, **no libraries and no build step**; it talks to Supabase's documented Auth and REST endpoints. It is
+meant for a strict security policy (`web/vercel.json`: scripts and styles only from the site itself, connections only to Supabase, no
+framing, no referrer, microphone only for the site). Text from the database is put on the page as text, never as markup (tested with
+an injected `<img onerror>` line). The only secrets in the browser are the signed-in user's own tokens, kept in `sessionStorage` (this
+tab only). `web/config.js` holds the project address and the **publishable** key, which are public by design.
+
+## Setup
+1. **Done:** schema applied, sign-ups off, bot user created and stored (`scripts\relay_login.py`), relay switched on in `backend\.env`.
+2. **Next, your emails:** create the admin and streamer users (invite or temporary password + profile row), then they choose their own
+   password from the email link. Turn on two-factor for the admin.
+3. **Vercel:** import the GitHub repository, set **Root Directory = `web`**, Framework Preset = *Other*, no build command, then set
+   Supabase's *Site URL* (and the redirect allow-list) to the Vercel address so email links return to the page.
 4. **Rotate the Supabase personal access token** that was used for setup (it controls the whole account), and keep it out of OneDrive.
 
 ## Limits to know

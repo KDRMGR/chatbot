@@ -82,6 +82,7 @@ class RelayService:
 
     def public_state(self) -> dict[str, Any]:
         return {"connected": self.error is None and self.last_status_at is not None, "error": self.error,
+                "say_enabled": self.say_handler is not None,
                 "signed_in_as": self._client.signed_in_as, "commands": dict(self.counters), "last_command": self.last_command,
                 "last_status_s_ago": None if self.last_status_at is None else round(self._clock() - self.last_status_at)}
 
