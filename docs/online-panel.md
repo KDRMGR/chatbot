@@ -7,8 +7,10 @@
   stranger; deleted afterwards) passed **22 of 22** checks: who can read/send/forge what, and a real round trip through the running bot.
 - **Built and tested locally (not deployed):** the web page in `web/` (no libraries): sign-in, invite/password-reset link, status,
   controls, approvals, streams, topic, live chat, command log, hold-to-speak card. Tested in a browser against a local fake of Supabase.
-- **NOT done:** the real admin and streamer logins (need their email addresses), the Vercel deploy, and what hold-to-speak does with the
-  words (the button stays off; the bot refuses `say` until that is decided).
+- **Deployed:** the page is live on Vercel (`chatbot-ruddy-zeta-51.vercel.app`, project root `web`, security headers verified) and
+  Supabase's site address and redirect allow-list point at it.
+- **Hold-to-speak:** decided and built (see below); not yet tried with a real microphone.
+- **NOT done:** the real admin and streamer logins (need their email addresses).
 
 ## Why a relay and not a tunnel
 The control API stays **loopback only**. Nothing on your PC listens for the internet. Instead the bot calls **out** to Supabase:
@@ -49,12 +51,18 @@ sets them. Signing up must be switched off in the project, so strangers cannot e
 `pause`, `resume`, `set_approval`, `set_ai`, `set_proactive`, `approve`, `reject`, `select_stream`, `add_stream`, `update_stream`,
 `remove_stream`, `stream_settings`, `set_topic`, and `say` (streamer/admin; **not switched on yet**: see below).
 
-## Hold-to-speak (not built yet)
-Planned: a hold-to-speak button on the streamer's page; the browser's speech recognition turns the speech into text, which is sent as a
-`say` command. What the bot then does with it is **not decided**: post it under the streamer's own Kick account (needs a one-time
-chat-permission sign-in as that account), hand it to the AI as a message from the streamer, or post it through the bot account with a
-label. Until then the relay answers `say` with "voice replies are not switched on yet". The browser sends the audio to its vendor's speech
-service (local engines are blocked on this PC by Windows Smart App Control).
+## Hold-to-speak (built; the microphone itself is untested)
+The streamer holds the button on the page and speaks; the browser's speech recognition turns it into text, which is sent as a `say`
+command. **What the bot does with it (decided: "option b"):** the text goes through the normal pipeline as a message **from the
+streamer** (not posted under any account), so the bot answers it in chat like part of a conversation: "I said it, the viewers heard me,
+and the bot responded". Same filters, personalities, AI, output guard, rate limits, pause and approval as any viewer message; the only
+difference is that the same-viewer cooldown does not apply to the streamer and the prompt tells the AI the words were spoken out loud.
+The spoken line is also kept in the bot's short chat memory, so the next replies continue the conversation (Hinglish when
+`STEALTHBOT_REPLY_LANGUAGE=hinglish`). The answer goes to the first connected platform (Kick, then YouTube). The page shows what
+happened: answered, waiting for approval, paused, pacing itself, no stream connected. Switch it off with
+`STEALTHBOT_RELAY_VOICE_ENABLED=false`. Code: `backend/app/relay/voice.py`. The browser sends the audio to its vendor's speech service
+(local engines are blocked on this PC by Windows Smart App Control). Hindi (hi-IN) usually returns Devanagari text, which the AI
+reads fine and answers in Hinglish.
 
 ## The web page (`web/`)
 Plain HTML, CSS and JavaScript, **no libraries and no build step**; it talks to Supabase's documented Auth and REST endpoints. It is
