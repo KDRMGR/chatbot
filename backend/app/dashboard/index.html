@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StealthBot Control</title>
+  <link rel="stylesheet" href="/dashboard/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>StealthBot</h1>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button type="button" role="tab" id="tab-live" data-tab="live" aria-selected="true" aria-controls="panel-live">Live</button>
+      <button type="button" role="tab" id="tab-personalities" data-tab="personalities" aria-selected="false" aria-controls="panel-personalities">Personalities</button>
+      <button type="button" role="tab" id="tab-ai" data-tab="ai" aria-selected="false" aria-controls="panel-ai">AI</button>
+      <button type="button" role="tab" id="tab-scheduler" data-tab="scheduler" aria-selected="false" aria-controls="panel-scheduler">Scheduler &amp; limits</button>
+      <button type="button" role="tab" id="tab-history" data-tab="history" aria-selected="false" aria-controls="panel-history">History &amp; logs</button>
+    </nav>
+    <div class="pills" id="pills" aria-live="polite"></div>
+  </header>
+
+  <main id="app" hidden>
+    <!-- ===================================================== LIVE -->
+    <section class="grid" id="panel-live" role="tabpanel" aria-labelledby="tab-live">
+      <div class="col">
+        <article class="card" aria-labelledby="h-control">
+          <h2 id="h-control">Bot control</h2>
+          <button id="btn-pause" class="big" type="button">Pause all replies</button>
+          <p class="hint" id="pause-hint"></p>
+          <label class="switch-row">
+            <input type="checkbox" id="chk-ai">
+            <span>AI replies <small>(off = pre-written rule replies only)</small></span>
+          </label>
+          <label class="switch-row">
+            <input type="checkbox" id="chk-approval">
+            <span>Ask me before anything is sent <small>(you approve each message)</small></span>
+          </label>
+        </article>
+
+        <article class="card" aria-labelledby="h-emergency">
+          <h2 id="h-emergency">Emergency controls</h2>
+          <div id="emergency-platforms" class="stack"></div>
+          <div class="row">
+            <button id="btn-restart" type="button">Restart bot</button>
+            <button id="btn-stop" type="button" class="danger">Stop bot</button>
+          </div>
+          <p class="hint" id="stop-msg" role="status"></p>
+          <p class="hint">Pause works instantly and does not need the AI. Accounts are signed in and out with
+            <code>scripts\youtube_login.py</code> / <code>youtube_logout.py</code>.</p>
+        </article>
+      </div>
+
+      <div class="col wide">
+        <article class="card" id="card-approval" aria-labelledby="h-approval" hidden>
+          <h2 id="h-approval">Waiting for your approval <small id="approval-count"></small></h2>
+          <ul class="approvals" id="approvals"></ul>
+          <p class="hint" id="approval-empty">Nothing is waiting.</p>
+          <p class="hint" id="approval-msg" role="status"></p>
+        </article>
+
+        <article class="card" aria-labelledby="h-feed">
+          <h2 id="h-feed">Live chat <small>newest first</small></h2>
+          <ol class="feed" id="feed"></ol>
+          <p class="hint" id="feed-empty">Nothing yet. Messages from chat and replies from the bot appear here.</p>
+        </article>
+
+        <article class="card" aria-labelledby="h-test">
+          <h2 id="h-test">Test chat <small>sends a fake viewer message through the whole bot, nothing goes to YouTube</small></h2>
+          <form id="test-form" class="row">
+            <input id="test-user" type="text" value="tester" maxlength="64" aria-label="Fake viewer name">
+            <input id="test-msg" type="text" placeholder="Say something as a viewer" maxlength="500" aria-label="Fake viewer message" required>
+            <button type="submit">Send</button>
+          </form>
+          <p class="hint" id="test-result" role="status"></p>
+        </article>
+      </div>
+
+      <div class="col">
+        <article class="card" aria-labelledby="h-system">
+          <h2 id="h-system">This PC</h2>
+          <div id="system" class="meters"></div>
+        </article>
+
+        <article class="card" aria-labelledby="h-plat">
+          <h2 id="h-plat">Platforms</h2>
+          <div id="platforms"></div>
+        </article>
+
+        <article class="card" aria-labelledby="h-stats">
+          <h2 id="h-stats">This session</h2>
+          <dl class="kv" id="stats"></dl>
+        </article>
+      </div>
+    </section>
+
+    <!-- ===================================================== PERSONALITIES -->
+    <section class="page" id="panel-personalities" role="tabpanel" aria-labelledby="tab-personalities" hidden>
+      <p class="hint" id="pers-warning"></p>
+      <div class="cards" id="pers-cards"></div>
+      <p class="hint">The safety rules (no links, no commands, no personal data, bot disclosure) are built into the program and
+        are added to every prompt automatically, so editing a prompt cannot switch them off.</p>
+    </section>
+
+    <!-- ===================================================== AI -->
+    <section class="page two" id="panel-ai" role="tabpanel" aria-labelledby="tab-ai" hidden>
+      <article class="card" aria-labelledby="h-model">
+        <h2 id="h-model">AI model</h2>
+        <dl class="kv" id="model-now"></dl>
+        <label for="sel-primary">Primary model</label>
+        <div class="row">
+          <select id="sel-primary"></select>
+          <button id="btn-switch" type="button">Switch</button>
+        </div>
+        <label for="sel-fallback">Backup model</label>
+        <div class="row">
+          <select id="sel-fallback"></select>
+          <button id="btn-fallback" type="button">Set</button>
+        </div>
+        <p class="hint" id="model-msg" role="status"></p>
+        <p class="hint">Models come from Ollama on this PC. Install a new one with <code>ollama pull NAME</code>, then
+          reload the list. A model is tested before it takes over; if the test fails the old one stays.</p>
+        <button id="btn-reload-models" class="quiet" type="button">Reload model list</button>
+      </article>
+
+      <article class="card" aria-labelledby="h-aiparams">
+        <h2 id="h-aiparams">Generation settings</h2>
+        <form id="ai-form">
+          <div class="fields" id="ai-fields"></div>
+          <button type="submit">Save settings</button>
+        </form>
+        <p class="hint" id="ai-msg" role="status"></p>
+        <p class="hint">A bigger context window needs more GPU memory: this PC has 4 GB, and the measured setup uses 4096.
+          Changing it makes Ollama reload the model once (a slow first reply). On battery the AI is much slower, so keep
+          the timeout generous unless you stream plugged in.</p>
+        <div class="row">
+          <button id="btn-ai-test" type="button">Test AI generation</button>
+        </div>
+        <p class="hint" id="ai-test-result" role="status"></p>
+      </article>
+    </section>
+
+    <!-- ===================================================== SCHEDULER & LIMITS -->
+    <section class="page two" id="panel-scheduler" role="tabpanel" aria-labelledby="tab-scheduler" hidden>
+      <article class="card" aria-labelledby="h-proactive">
+        <h2 id="h-proactive">Proactive chat</h2>
+        <label class="switch-row">
+          <input type="checkbox" id="chk-proactive">
+          <span>Start conversations when chat is quiet <small>(off = the bot only answers viewers)</small></span>
+        </label>
+        <div id="sched-status"></div>
+        <form id="sched-form">
+          <div class="sched-grid">
+            <span></span><span class="sched-head">Min</span><span class="sched-head">Max</span>
+            <span>Chat is quiet after (minutes)</span>
+            <input type="number" id="set-quiet" min="0.2" step="any" aria-label="Quiet after, minutes"><span></span>
+            <span>Gap after any bot message (minutes)</span>
+            <input type="number" id="set-gap" min="0.2" step="any" aria-label="Minimum gap, minutes"><span></span>
+            <label class="sched-name"><input type="checkbox" id="act-general-on"> General chat</label>
+            <input type="number" id="act-general-min" min="0.2" step="any" aria-label="General chat, minimum minutes">
+            <input type="number" id="act-general-max" min="0.2" step="any" aria-label="General chat, maximum minutes">
+            <label class="sched-name"><input type="checkbox" id="act-gaming_question-on"> Gaming question</label>
+            <input type="number" id="act-gaming_question-min" min="0.2" step="any" aria-label="Gaming question, minimum minutes">
+            <input type="number" id="act-gaming_question-max" min="0.2" step="any" aria-label="Gaming question, maximum minutes">
+            <label class="sched-name"><input type="checkbox" id="act-trivia-on"> Trivia</label>
+            <input type="number" id="act-trivia-min" min="0.2" step="any" aria-label="Trivia, minimum minutes">
+            <input type="number" id="act-trivia-max" min="0.2" step="any" aria-label="Trivia, maximum minutes">
+          </div>
+          <button type="submit">Save timing</button>
+        </form>
+        <p class="hint" id="sched-msg" role="status"></p>
+        <p class="hint">Each activity repeats at a random time between its min and max, but only while chat has been quiet,
+          and never straight after another bot message. Viewers always come first.</p>
+      </article>
+
+      <article class="card" aria-labelledby="h-limits">
+        <h2 id="h-limits">Message limits per platform</h2>
+        <div id="limits-forms"></div>
+        <p class="hint" id="limits-msg" role="status"></p>
+        <p class="hint">Limits protect the chat from the bot. YouTube also has a daily quota that allows roughly 200 messages
+          per 6-hour stream, so the YouTube default (7 per 10 minutes) is deliberately low. These numbers are not platform
+          guarantees: check how your chat reacts.</p>
+      </article>
+    </section>
+
+    <!-- ===================================================== HISTORY & LOGS -->
+    <section class="page" id="panel-history" role="tabpanel" aria-labelledby="tab-history" hidden>
+      <article class="card" aria-labelledby="h-sessions">
+        <h2 id="h-sessions">Sessions <button id="btn-sessions" class="quiet" type="button">Refresh</button></h2>
+        <div class="table-wrap">
+          <table class="table" id="sessions-table">
+            <thead><tr><th>Started</th><th>Length</th><th>Status</th><th>Messages</th><th>Replies</th><th>Errors</th><th>AI speed</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="hint" id="sessions-empty" hidden>No sessions yet.</p>
+      </article>
+
+      <article class="card" aria-labelledby="h-conn">
+        <h2 id="h-conn">Connection events <button id="btn-conn" class="quiet" type="button">Refresh</button></h2>
+        <ul class="list" id="conn-logs"></ul>
+        <p class="hint" id="conn-empty" hidden>No connection events yet.</p>
+      </article>
+
+      <article class="card" aria-labelledby="h-logs">
+        <h2 id="h-logs">Log</h2>
+        <div class="row logbar">
+          <select id="log-level" aria-label="Show entries at or above this level">
+            <option value="DEBUG">Debug</option>
+            <option value="INFO" selected>Info</option>
+            <option value="WARNING">Warnings</option>
+            <option value="ERROR">Errors</option>
+          </select>
+          <input type="number" id="log-lines" value="150" min="10" max="1000" aria-label="Number of entries">
+          <button id="btn-logs" type="button">Refresh</button>
+          <label class="inline"><input type="checkbox" id="log-auto"> auto-refresh</label>
+        </div>
+        <div class="logview" id="log-view" role="log" aria-live="off"></div>
+        <p class="hint">Secrets such as tokens are removed from the log before it is shown.</p>
+      </article>
+    </section>
+  </main>
+
+  <div class="overlay" id="signin" hidden>
+    <form class="card dialog" id="signin-form">
+      <h2>Sign in</h2>
+      <p>The easiest way is to start the dashboard with <code>scripts\open_dashboard.bat</code>, which signs you in
+        automatically.</p>
+      <p>Or paste the API key from <code>%LOCALAPPDATA%\stealthbot\data\api_token</code>.</p>
+      <input id="signin-key" type="password" autocomplete="off" spellcheck="false" aria-label="API key" required>
+      <p class="hint error" id="signin-msg" role="alert"></p>
+      <button type="submit" class="big">Open dashboard</button>
+    </form>
+  </div>
+
+  <script src="/dashboard/app.js"></script>
+  <script src="/dashboard/panels.js"></script>
+</body>
+</html>

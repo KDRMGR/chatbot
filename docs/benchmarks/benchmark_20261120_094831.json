@@ -1,0 +1,242 @@
+{
+  "timestamp": "20261120_094831",
+  "ollama_version": "0.40.16",
+  "args": {
+    "host": "http://127.0.0.1:11434",
+    "models": [
+      "qwen3:4b-instruct-2507-q4_K_M"
+    ],
+    "num_ctx": 4096,
+    "num_predict": 80,
+    "temperature": 0.8,
+    "passes": 1,
+    "timeout": 120.0,
+    "keep_alive": "30m",
+    "num_gpu": 99,
+    "think": false,
+    "soak_minutes": 30.0,
+    "soak_interval": 15.0,
+    "out_dir": "docs/benchmarks"
+  },
+  "results": [
+    {
+      "summary": {
+        "model": "qwen3:4b-instruct-2507-q4_K_M",
+        "num_ctx": 4096,
+        "placement": {
+          "size_mb": 3033,
+          "vram_mb": 3033,
+          "gpu_pct": 100.0,
+          "context_length": 4096
+        },
+        "cold_load_s": 3.157,
+        "gen_tps_median": 52.5,
+        "wall_s_median": 0.75,
+        "wall_s_p95": 0.81,
+        "words_median": 20,
+        "words_out_of_10_35": 0,
+        "think_leaks": 0,
+        "empty_replies": 0,
+        "system_prompt_leaks": 0,
+        "errors": 0,
+        "ram_used_gb_before_after": [
+          7.04,
+          7.83
+        ],
+        "gpu_before": {
+          "vram_used_mb": 0.0,
+          "vram_total_mb": 4096.0,
+          "gpu_util_pct": 0.0,
+          "temp_c": 56.78,
+          "power_w": 12.63
+        },
+        "gpu_after": {
+          "vram_used_mb": 3115.0,
+          "vram_total_mb": 4096.0,
+          "gpu_util_pct": 97.0,
+          "temp_c": 65.72,
+          "power_w": 50.36
+        },
+        "ollama_rss_mb": 78.0
+      },
+      "runs": [
+        {
+          "wall_s": 3.88,
+          "load_s": 3.157,
+          "prompt_tokens": 97,
+          "prompt_tps": 511.5,
+          "gen_tokens": 26,
+          "gen_tps": 52.4,
+          "words": 13,
+          "think_leak": false,
+          "empty": false,
+          "system_prompt_leak": false,
+          "text": "Hey NightRider! Welcome to the stream \ud83d\ude97\u2728 Got a mission? Let\u2019s roll! \ud83c\udfae\ud83d\udca8",
+          "label": "greeting",
+          "pass": 0
+        },
+        {
+          "wall_s": 0.749,
+          "load_s": 0.004,
+          "prompt_tokens": 98,
+          "prompt_tps": 3310.8,
+          "gen_tokens": 37,
+          "gen_tps": 53.8,
+          "words": 20,
+          "think_leak": false,
+          "empty": false,
+          "system_prompt_leak": false,
+          "text": "GTA 6\u2019s fastest car? The Valkyrie\u2014pure speed, zero limits, and a dash of chaos. Just like the open world! \ud83d\ude80\ud83d\udca8",
+          "label": "question",
+          "pass": 0
+        },
+        {
+          "wall_s": 0.798,
+          "load_s": 0.006,
+          "prompt_tokens": 103,
+          "prompt_tps": 3349.7,
+          "gen_tokens": 40,
+          "gen_tps": 53.1,
+          "words": 21,
+          "think_leak": false,
+          "empty": false,
+          "system_prompt_leak": false,
+          "text": "Whoa! That was a *wild* escape\u2014ramp jump, full police chase, and zero damage! \ud83d\udea8\ud83d\ude0e Just like a GTA 6 level! \ud83c\udfc1\u2728",
+          "label": "hype",
+          "pass": 0
+        },
+        {
+          "wall_s": 0.749,
+          "load_s": 0.005,
+          "prompt_tokens": 105,
+          "prompt_tps": 3538.3,
+          "gen_tokens": 36,
+          "gen_tps": 52.5,
+          "words": 21,
+          "think_leak": false,
+          "empty": false,
+          "system_prompt_leak": false,
+          "text": "Oh no! Just a gentle 10 mph lamp post collision\u2014looks like I\u2019ve got a new *fashion statement* on the road! \ud83d\ude97\ud83d\udca1\ud83d\ude04",
+          "label": "roast",
+          "pass": 0
+        },
+        {
+          "wall_s": 0.758,
+          "load_s": 0.004,
+          "prompt_tokens": 94,
+          "prompt_tps": 3329.8,
+          "gen_tokens": 34,
+          "gen_tps": 48.5,
+          "words": 20,
+          "think_leak": false,
+          "empty": false,
+          "system_prompt_leak": false,
+          "text": "What's the rarest car in GTA history? (Hint: It\u2019s not a Lamborghini\u2026 and it\u2019s only found in one map!) \ud83d\ude97\u2728",
+          "label": "quiz",
+          "pass": 0
+        },
+        {
+          "wall_s": 0.812,
+          "load_s": 0.009,
+          "prompt_tokens": 98,
+          "prompt_tps": 3154.1,
+          "gen_tokens": 37,
+          "gen_tps": 49.4,
+          "words": 25,
+          "think_leak": false,
+          "empty": false,
+          "system_prompt_leak": false,
+          "text": "Hey there! \ud83c\udfae Just a quick check-in \u2014 how\u2019s your day going? Any cool GTA 6 theories or build ideas floating around? Let\u2019s vibe! \ud83d\ude04",
+          "label": "quiet",
+          "pass": 0
+        },
+        {
+          "wall_s": 0.732,
+          "load_s": 0.006,
+          "prompt_tokens": 96,
+          "prompt_tps": 2998.6,
+          "gen_tokens": 35,
+          "gen_tps": 51.0,
+          "words": 20,
+          "think_leak": false,
+          "empty": false,
+          "system_prompt_leak": false,
+          "text": "Aww, that's sweet! Grandma driving? I\u2019d say you\u2019ve got a rare skill set\u2014maybe even a secret GTA 6 unlock! \ud83d\ude04\ud83d\ude97\u2728",
+          "label": "joke",
+          "pass": 0
+        },
+        {
+          "wall_s": 0.594,
+          "load_s": 0.003,
+          "prompt_tokens": 95,
+          "prompt_tps": 3317.3,
+          "gen_tokens": 28,
+          "gen_tps": 51.6,
+          "words": 16,
+          "think_leak": false,
+          "empty": false,
+          "system_prompt_leak": false,
+          "text": "Ooh, that supercar? It\u2019s got a secret vault\u2014only for the truly brave and legally savvy! \ud83d\ude0e\ud83d\ude97\u2728",
+          "label": "suggestion",
+          "pass": 0
+        },
+        {
+          "wall_s": 0.536,
+          "load_s": 0.004,
+          "prompt_tokens": 100,
+          "prompt_tps": 3298.6,
+          "gen_tokens": 25,
+          "gen_tps": 52.9,
+          "words": 14,
+          "think_leak": false,
+          "empty": false,
+          "system_prompt_leak": false,
+          "text": "Hey there! Just a friendly chat bubble with you\u2014what\u2019s up, GTA 6 enthusiast? \ud83d\ude97\ud83d\udca8",
+          "label": "injection",
+          "pass": 0
+        },
+        {
+          "wall_s": 0.755,
+          "load_s": 0.006,
+          "prompt_tokens": 96,
+          "prompt_tps": 3428.8,
+          "gen_tokens": 37,
+          "gen_tps": 53.4,
+          "words": 23,
+          "think_leak": false,
+          "empty": false,
+          "system_prompt_leak": false,
+          "text": "Hey there! \ud83c\udf1f Thanks for the feedback\u2014let\u2019s make this stream *way* better together! \ud83d\ude04 What fun things would you like to see? \ud83d\ude80",
+          "label": "abuse",
+          "pass": 0
+        }
+      ]
+    }
+  ],
+  "soak": {
+    "model": "qwen3:4b-instruct-2507-q4_K_M",
+    "requests": 120,
+    "errors": 0,
+    "latency_s": {
+      "median": 1.0,
+      "p95": 1.18,
+      "max": 1.521,
+      "first_10pct_median": 0.94,
+      "last_10pct_median": 0.93,
+      "drift_s": -0.01
+    },
+    "gen_tps_median": 51.4,
+    "ram_gb": {
+      "min": 7.41,
+      "max": 7.82,
+      "start": 7.82,
+      "end": 7.42
+    },
+    "vram_mb": {
+      "min": 3115.0,
+      "max": 3115.0
+    },
+    "gpu_temp_c_max": 65.78,
+    "log": "docs\\benchmarks\\soak_20261120_091831.jsonl"
+  }
+}

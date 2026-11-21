@@ -1,0 +1,25 @@
+# secrets and local state
+.env
+backend/.env
+*secret*
+*.dpapi
+*.pem
+*.key
+.claude/
+*.db
+*.db-wal
+*.db-shm
+api_token
+data/
+logs/
+
+# python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# node (Phase 6)
+node_modules/
+frontend/dist/

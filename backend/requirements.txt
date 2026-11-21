@@ -1,0 +1,14 @@
+# Runtime. EVERYTHING here must be pure Python: Windows Smart App Control on this PC blocks unsigned native
+# extensions (.pyd). That is why there is no pydantic / fastapi / greenlet / async SQLAlchemy / uvloop / httptools.
+# SQLAlchemy is installed as its pure-Python wheel by scripts\setup.ps1 (the default Windows wheel contains
+# compiled modules that would be blocked). See docs\phase2-core-engine.md.
+starlette>=1.0
+uvicorn>=0.32
+sqlalchemy>=2.1
+alembic>=1.14
+httpx>=0.27
+tzdata>=2024.1  # pure-Python time zone data: YouTube quota resets at midnight Pacific Time
+
+# Development / tests
+pytest>=8.3
+pytest-asyncio>=1.0

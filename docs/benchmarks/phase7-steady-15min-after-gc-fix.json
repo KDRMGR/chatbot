@@ -1,0 +1,1906 @@
+{
+ "minutes": 15.0,
+ "backend": "fake",
+ "events": [
+  {
+   "kind": "in_flight_left",
+   "t": 902.0815141201019,
+   "count": 0
+  }
+ ],
+ "windows": [
+  {
+   "window": "baseline (first 40 s)",
+   "from_s": 0,
+   "to_s": 40,
+   "requests": 186,
+   "actions": {
+    "replied": 29,
+    "ignored": 123,
+    "duplicate": 11,
+    "no_reply": 23
+   },
+   "replied_by": {
+    "ai": 29
+   },
+   "latency_median_s": 0.03,
+   "latency_p95_s": 0.1,
+   "reasons": {
+    "copypasta": 91,
+    "no_personality_available": 23,
+    "link": 15,
+    "message_id_seen": 11,
+    "same_viewer_repeat": 11,
+    "prompt_injection": 6
+   }
+  }
+ ],
+ "checks": [
+  {
+   "check": "every request got a normal answer (errors only during restarts, waits only during faults)",
+   "ok": true,
+   "detail": "0 unexpected of 4514; 0 waited out under a fault; by action: {'replied': 63, 'ignored': 4218, 'duplicate': 210, 'no_reply': 23}"
+  },
+  {
+   "check": "normal operation: viewers are answered within 10 s (p95)",
+   "ok": true,
+   "detail": "baseline median 0.03s, p95 0.1s, actions {'replied': 29, 'ignored': 123, 'duplicate': 11, 'no_reply': 23}"
+  },
+  {
+   "check": "database integrity_check",
+   "ok": true,
+   "detail": "PRAGMA integrity_check"
+  },
+  {
+   "check": "no message was answered twice",
+   "ok": true,
+   "detail": "0 message(s) with more than one reply"
+  },
+  {
+   "check": "no platform message id stored twice",
+   "ok": true,
+   "detail": "0 duplicated ids"
+  },
+  {
+   "check": "every reply the client was told about is recorded as sent",
+   "ok": true,
+   "detail": "0 missing of 63"
+  },
+  {
+   "check": "at most a couple of replies left in an unknown state by the hard kill",
+   "ok": true,
+   "detail": "0 pending (stored, but the kill came before the send result was saved)"
+  },
+  {
+   "check": "sessions: a hard kill is recorded as a crash, clean stops as ended",
+   "ok": true,
+   "detail": "['ended'] (expected ['ended'])"
+  },
+  {
+   "check": "statistics were saved for every session (including the crashed one)",
+   "ok": true,
+   "detail": "1 of 1 sessions have statistics"
+  },
+  {
+   "check": "no unhandled errors / tracebacks in the bot log",
+   "ok": true,
+   "detail": "0 found"
+  },
+  {
+   "check": "error-level log lines (informational)",
+   "ok": true,
+   "detail": "0 total; top: []"
+  },
+  {
+   "check": "incoming queue stayed bounded (limit 200)",
+   "ok": true,
+   "detail": "max queue 1"
+  },
+  {
+   "check": "memory of bot process 21568 is flat (no climb, no big peaks)",
+   "ok": true,
+   "detail": "thirds of 15 min: 80 -> 82 -> 83 MB private, last vs middle +6 MB/hour; typical 81, peak 93 MB"
+  }
+ ],
+ "samples": [
+  {
+   "t": 1.9977283477783203,
+   "pid": 21568,
+   "ws_mb": 86.6,
+   "private_mb": 71.1,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {}
+  },
+  {
+   "t": 11.99397897720337,
+   "pid": 21568,
+   "ws_mb": 90.9,
+   "private_mb": 75.8,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 45,
+    "replies_sent": 10,
+    "ignored_spam": 11,
+    "duplicates": 4,
+    "ignored_abuse": 1
+   }
+  },
+  {
+   "t": 22.021345615386963,
+   "pid": 21568,
+   "ws_mb": 95.9,
+   "private_mb": 80.3,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 98,
+    "replies_sent": 22,
+    "ignored_spam": 45,
+    "duplicates": 7,
+    "ignored_abuse": 1,
+    "ignored_repeated": 2
+   }
+  },
+  {
+   "t": 32.04671883583069,
+   "pid": 21568,
+   "ws_mb": 89.7,
+   "private_mb": 75.1,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 139,
+    "replies_sent": 27,
+    "ignored_spam": 72,
+    "duplicates": 9,
+    "ignored_abuse": 5,
+    "ignored_repeated": 4,
+    "cache_hits": 1
+   }
+  },
+  {
+   "t": 42.06451439857483,
+   "pid": 21568,
+   "ws_mb": 92.3,
+   "private_mb": 76.7,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 195,
+    "replies_sent": 29,
+    "ignored_spam": 111,
+    "duplicates": 11,
+    "ignored_abuse": 7,
+    "ignored_repeated": 14,
+    "cache_hits": 1,
+    "guard_rejected": 1
+   }
+  },
+  {
+   "t": 52.089393854141235,
+   "pid": 21568,
+   "ws_mb": 95.5,
+   "private_mb": 79.9,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 241,
+    "replies_sent": 29,
+    "ignored_spam": 143,
+    "duplicates": 11,
+    "ignored_abuse": 10,
+    "ignored_repeated": 25,
+    "cache_hits": 1,
+    "guard_rejected": 1
+   }
+  },
+  {
+   "t": 62.106107234954834,
+   "pid": 21568,
+   "ws_mb": 87.9,
+   "private_mb": 72.4,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 287,
+    "replies_sent": 29,
+    "ignored_spam": 173,
+    "duplicates": 13,
+    "ignored_abuse": 11,
+    "ignored_repeated": 38,
+    "cache_hits": 1,
+    "guard_rejected": 1
+   }
+  },
+  {
+   "t": 72.1336977481842,
+   "pid": 21568,
+   "ws_mb": 91.0,
+   "private_mb": 75.4,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 335,
+    "replies_sent": 31,
+    "ignored_spam": 202,
+    "duplicates": 15,
+    "ignored_abuse": 13,
+    "ignored_repeated": 51,
+    "cache_hits": 1,
+    "guard_rejected": 1
+   }
+  },
+  {
+   "t": 82.15255331993103,
+   "pid": 21568,
+   "ws_mb": 94.3,
+   "private_mb": 78.7,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 384,
+    "replies_sent": 31,
+    "ignored_spam": 231,
+    "duplicates": 19,
+    "ignored_abuse": 13,
+    "ignored_repeated": 67,
+    "cache_hits": 1,
+    "guard_rejected": 1
+   }
+  },
+  {
+   "t": 92.17211604118347,
+   "pid": 21568,
+   "ws_mb": 97.3,
+   "private_mb": 81.7,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 427,
+    "replies_sent": 31,
+    "ignored_spam": 260,
+    "duplicates": 20,
+    "ignored_abuse": 14,
+    "ignored_repeated": 79,
+    "cache_hits": 1,
+    "guard_rejected": 1
+   }
+  },
+  {
+   "t": 102.20095372200012,
+   "pid": 21568,
+   "ws_mb": 100.8,
+   "private_mb": 85.2,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 481,
+    "replies_sent": 32,
+    "ignored_spam": 289,
+    "duplicates": 20,
+    "ignored_abuse": 17,
+    "ignored_repeated": 100,
+    "cache_hits": 1,
+    "guard_rejected": 1
+   }
+  },
+  {
+   "t": 112.22801351547241,
+   "pid": 21568,
+   "ws_mb": 104.6,
+   "private_mb": 89.7,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 529,
+    "replies_sent": 33,
+    "ignored_spam": 316,
+    "duplicates": 21,
+    "ignored_abuse": 17,
+    "ignored_repeated": 119,
+    "cache_hits": 1,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 122.25181317329407,
+   "pid": 21568,
+   "ws_mb": 89.0,
+   "private_mb": 74.0,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 589,
+    "replies_sent": 34,
+    "ignored_spam": 346,
+    "duplicates": 25,
+    "ignored_abuse": 19,
+    "ignored_repeated": 142,
+    "cache_hits": 1,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 132.2794919013977,
+   "pid": 21568,
+   "ws_mb": 92.6,
+   "private_mb": 77.2,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 645,
+    "replies_sent": 34,
+    "ignored_spam": 377,
+    "duplicates": 27,
+    "ignored_abuse": 20,
+    "ignored_repeated": 164,
+    "cache_hits": 1,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 142.30003833770752,
+   "pid": 21568,
+   "ws_mb": 96.2,
+   "private_mb": 80.9,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 698,
+    "replies_sent": 35,
+    "ignored_spam": 398,
+    "duplicates": 30,
+    "ignored_abuse": 24,
+    "ignored_repeated": 187,
+    "cache_hits": 1,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 152.32294392585754,
+   "pid": 21568,
+   "ws_mb": 99.5,
+   "private_mb": 84.3,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 746,
+    "replies_sent": 36,
+    "ignored_spam": 429,
+    "duplicates": 31,
+    "ignored_abuse": 24,
+    "ignored_repeated": 203,
+    "cache_hits": 1,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 162.34288001060486,
+   "pid": 21568,
+   "ws_mb": 102.3,
+   "private_mb": 87.1,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 789,
+    "replies_sent": 37,
+    "ignored_spam": 449,
+    "duplicates": 34,
+    "ignored_abuse": 24,
+    "ignored_repeated": 222,
+    "cache_hits": 2,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 172.37649488449097,
+   "pid": 21568,
+   "ws_mb": 105.0,
+   "private_mb": 89.9,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 829,
+    "replies_sent": 37,
+    "ignored_spam": 472,
+    "duplicates": 37,
+    "ignored_abuse": 26,
+    "ignored_repeated": 234,
+    "cache_hits": 2,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 182.39304065704346,
+   "pid": 21568,
+   "ws_mb": 89.0,
+   "private_mb": 73.4,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 869,
+    "replies_sent": 37,
+    "ignored_spam": 492,
+    "duplicates": 41,
+    "ignored_abuse": 28,
+    "ignored_repeated": 248,
+    "cache_hits": 2,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 192.41041660308838,
+   "pid": 21568,
+   "ws_mb": 91.3,
+   "private_mb": 75.8,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 910,
+    "replies_sent": 37,
+    "ignored_spam": 512,
+    "duplicates": 43,
+    "ignored_abuse": 29,
+    "ignored_repeated": 266,
+    "cache_hits": 2,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 202.43790006637573,
+   "pid": 21568,
+   "ws_mb": 93.9,
+   "private_mb": 78.5,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 947,
+    "replies_sent": 37,
+    "ignored_spam": 531,
+    "duplicates": 45,
+    "ignored_abuse": 29,
+    "ignored_repeated": 282,
+    "cache_hits": 2,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 212.4686176776886,
+   "pid": 21568,
+   "ws_mb": 96.7,
+   "private_mb": 81.3,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 987,
+    "replies_sent": 37,
+    "ignored_spam": 549,
+    "duplicates": 47,
+    "ignored_abuse": 30,
+    "ignored_repeated": 301,
+    "cache_hits": 2,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 222.48463463783264,
+   "pid": 21568,
+   "ws_mb": 100.3,
+   "private_mb": 84.9,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1040,
+    "replies_sent": 40,
+    "ignored_spam": 581,
+    "duplicates": 50,
+    "ignored_abuse": 30,
+    "ignored_repeated": 316,
+    "cache_hits": 2,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 232.50578331947327,
+   "pid": 21568,
+   "ws_mb": 103.7,
+   "private_mb": 88.4,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1091,
+    "replies_sent": 40,
+    "ignored_spam": 612,
+    "duplicates": 52,
+    "ignored_abuse": 32,
+    "ignored_repeated": 332,
+    "cache_hits": 2,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 242.5297679901123,
+   "pid": 21568,
+   "ws_mb": 89.3,
+   "private_mb": 73.8,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1135,
+    "replies_sent": 40,
+    "ignored_spam": 634,
+    "duplicates": 54,
+    "ignored_abuse": 32,
+    "ignored_repeated": 352,
+    "cache_hits": 2,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 252.55168056488037,
+   "pid": 21568,
+   "ws_mb": 92.0,
+   "private_mb": 76.9,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1183,
+    "replies_sent": 41,
+    "ignored_spam": 650,
+    "duplicates": 56,
+    "ignored_abuse": 35,
+    "ignored_repeated": 378,
+    "cache_hits": 2,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 262.59119987487793,
+   "pid": 21568,
+   "ws_mb": 95.2,
+   "private_mb": 80.0,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1229,
+    "replies_sent": 42,
+    "ignored_spam": 672,
+    "duplicates": 57,
+    "ignored_abuse": 36,
+    "ignored_repeated": 399,
+    "cache_hits": 2,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 272.61752223968506,
+   "pid": 21568,
+   "ws_mb": 99.3,
+   "private_mb": 84.1,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1289,
+    "replies_sent": 43,
+    "ignored_spam": 708,
+    "duplicates": 58,
+    "ignored_abuse": 36,
+    "ignored_repeated": 421,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 282.63566160202026,
+   "pid": 21568,
+   "ws_mb": 103.8,
+   "private_mb": 88.8,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1361,
+    "replies_sent": 43,
+    "ignored_spam": 749,
+    "duplicates": 58,
+    "ignored_abuse": 38,
+    "ignored_repeated": 450,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 292.65813183784485,
+   "pid": 21568,
+   "ws_mb": 106.9,
+   "private_mb": 91.9,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1405,
+    "replies_sent": 43,
+    "ignored_spam": 771,
+    "duplicates": 60,
+    "ignored_abuse": 40,
+    "ignored_repeated": 468,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 302.68380975723267,
+   "pid": 21568,
+   "ws_mb": 89.3,
+   "private_mb": 74.1,
+   "queue": 1,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1453,
+    "replies_sent": 43,
+    "ignored_spam": 793,
+    "duplicates": 62,
+    "ignored_abuse": 44,
+    "ignored_repeated": 488,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 312.7089846134186,
+   "pid": 21568,
+   "ws_mb": 92.0,
+   "private_mb": 76.3,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1500,
+    "replies_sent": 43,
+    "ignored_spam": 812,
+    "duplicates": 65,
+    "ignored_abuse": 48,
+    "ignored_repeated": 509,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 322.7280547618866,
+   "pid": 21568,
+   "ws_mb": 95.4,
+   "private_mb": 79.9,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1551,
+    "replies_sent": 43,
+    "ignored_spam": 840,
+    "duplicates": 68,
+    "ignored_abuse": 48,
+    "ignored_repeated": 529,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 332.75953793525696,
+   "pid": 21568,
+   "ws_mb": 98.3,
+   "private_mb": 82.9,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1592,
+    "replies_sent": 44,
+    "ignored_spam": 862,
+    "duplicates": 68,
+    "ignored_abuse": 48,
+    "ignored_repeated": 547,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 342.7793698310852,
+   "pid": 21568,
+   "ws_mb": 102.0,
+   "private_mb": 86.5,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1649,
+    "replies_sent": 44,
+    "ignored_spam": 897,
+    "duplicates": 72,
+    "ignored_abuse": 49,
+    "ignored_repeated": 564,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 352.8020670413971,
+   "pid": 21568,
+   "ws_mb": 105.2,
+   "private_mb": 89.8,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1697,
+    "replies_sent": 44,
+    "ignored_spam": 922,
+    "duplicates": 73,
+    "ignored_abuse": 50,
+    "ignored_repeated": 585,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 362.82129073143005,
+   "pid": 21568,
+   "ws_mb": 89.4,
+   "private_mb": 73.6,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1749,
+    "replies_sent": 44,
+    "ignored_spam": 940,
+    "duplicates": 74,
+    "ignored_abuse": 52,
+    "ignored_repeated": 616,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 372.83880591392517,
+   "pid": 21568,
+   "ws_mb": 92.9,
+   "private_mb": 77.5,
+   "queue": 1,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1803,
+    "replies_sent": 44,
+    "ignored_spam": 962,
+    "duplicates": 76,
+    "ignored_abuse": 54,
+    "ignored_repeated": 644,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 382.8568911552429,
+   "pid": 21568,
+   "ws_mb": 97.6,
+   "private_mb": 82.2,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1874,
+    "replies_sent": 44,
+    "ignored_spam": 1005,
+    "duplicates": 80,
+    "ignored_abuse": 56,
+    "ignored_repeated": 666,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 392.8876118659973,
+   "pid": 21568,
+   "ws_mb": 101.7,
+   "private_mb": 86.5,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1935,
+    "replies_sent": 45,
+    "ignored_spam": 1033,
+    "duplicates": 84,
+    "ignored_abuse": 60,
+    "ignored_repeated": 690,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 402.89253759384155,
+   "pid": 21568,
+   "ws_mb": 104.3,
+   "private_mb": 89.0,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 1976,
+    "replies_sent": 45,
+    "ignored_spam": 1058,
+    "duplicates": 85,
+    "ignored_abuse": 62,
+    "ignored_repeated": 703,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 412.9195382595062,
+   "pid": 21568,
+   "ws_mb": 108.2,
+   "private_mb": 93.0,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2034,
+    "replies_sent": 45,
+    "ignored_spam": 1091,
+    "duplicates": 87,
+    "ignored_abuse": 63,
+    "ignored_repeated": 725,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 422.94606375694275,
+   "pid": 21568,
+   "ws_mb": 89.4,
+   "private_mb": 73.6,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2087,
+    "replies_sent": 45,
+    "ignored_spam": 1114,
+    "duplicates": 91,
+    "ignored_abuse": 67,
+    "ignored_repeated": 747,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 432.97497367858887,
+   "pid": 21568,
+   "ws_mb": 92.6,
+   "private_mb": 77.1,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2141,
+    "replies_sent": 45,
+    "ignored_spam": 1137,
+    "duplicates": 92,
+    "ignored_abuse": 70,
+    "ignored_repeated": 774,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 442.98805952072144,
+   "pid": 21568,
+   "ws_mb": 96.1,
+   "private_mb": 80.4,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2193,
+    "replies_sent": 45,
+    "ignored_spam": 1169,
+    "duplicates": 93,
+    "ignored_abuse": 73,
+    "ignored_repeated": 790,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 453.011759519577,
+   "pid": 21568,
+   "ws_mb": 99.8,
+   "private_mb": 84.2,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2247,
+    "replies_sent": 46,
+    "ignored_spam": 1192,
+    "duplicates": 97,
+    "ignored_abuse": 74,
+    "ignored_repeated": 815,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 463.04075932502747,
+   "pid": 21568,
+   "ws_mb": 103.1,
+   "private_mb": 87.6,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2300,
+    "replies_sent": 46,
+    "ignored_spam": 1221,
+    "duplicates": 101,
+    "ignored_abuse": 76,
+    "ignored_repeated": 833,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 473.05895495414734,
+   "pid": 21568,
+   "ws_mb": 106.2,
+   "private_mb": 90.6,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2344,
+    "replies_sent": 46,
+    "ignored_spam": 1241,
+    "duplicates": 104,
+    "ignored_abuse": 77,
+    "ignored_repeated": 853,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 483.08773136138916,
+   "pid": 21568,
+   "ws_mb": 89.6,
+   "private_mb": 73.7,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2384,
+    "replies_sent": 46,
+    "ignored_spam": 1267,
+    "duplicates": 105,
+    "ignored_abuse": 78,
+    "ignored_repeated": 865,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 493.10442876815796,
+   "pid": 21568,
+   "ws_mb": 92.5,
+   "private_mb": 77.2,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2437,
+    "replies_sent": 46,
+    "ignored_spam": 1289,
+    "duplicates": 106,
+    "ignored_abuse": 81,
+    "ignored_repeated": 892,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 503.1246225833893,
+   "pid": 21568,
+   "ws_mb": 95.8,
+   "private_mb": 80.1,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2485,
+    "replies_sent": 46,
+    "ignored_spam": 1313,
+    "duplicates": 107,
+    "ignored_abuse": 85,
+    "ignored_repeated": 911,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 513.148533821106,
+   "pid": 21568,
+   "ws_mb": 99.0,
+   "private_mb": 83.4,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2531,
+    "replies_sent": 47,
+    "ignored_spam": 1344,
+    "duplicates": 110,
+    "ignored_abuse": 87,
+    "ignored_repeated": 920,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 523.1757764816284,
+   "pid": 21568,
+   "ws_mb": 102.6,
+   "private_mb": 87.2,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2588,
+    "replies_sent": 47,
+    "ignored_spam": 1371,
+    "duplicates": 114,
+    "ignored_abuse": 89,
+    "ignored_repeated": 944,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 533.2004663944244,
+   "pid": 21568,
+   "ws_mb": 106.1,
+   "private_mb": 90.7,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2638,
+    "replies_sent": 48,
+    "ignored_spam": 1399,
+    "duplicates": 115,
+    "ignored_abuse": 91,
+    "ignored_repeated": 962,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 543.2164375782013,
+   "pid": 21568,
+   "ws_mb": 89.5,
+   "private_mb": 73.6,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2691,
+    "replies_sent": 48,
+    "ignored_spam": 1424,
+    "duplicates": 116,
+    "ignored_abuse": 92,
+    "ignored_repeated": 988,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 553.2444636821747,
+   "pid": 21568,
+   "ws_mb": 92.0,
+   "private_mb": 76.7,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2734,
+    "replies_sent": 48,
+    "ignored_spam": 1451,
+    "duplicates": 117,
+    "ignored_abuse": 93,
+    "ignored_repeated": 1002,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 563.2756202220917,
+   "pid": 21568,
+   "ws_mb": 95.5,
+   "private_mb": 79.7,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2784,
+    "replies_sent": 49,
+    "ignored_spam": 1475,
+    "duplicates": 122,
+    "ignored_abuse": 95,
+    "ignored_repeated": 1020,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 573.3078238964081,
+   "pid": 21568,
+   "ws_mb": 99.7,
+   "private_mb": 84.0,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2847,
+    "replies_sent": 49,
+    "ignored_spam": 1506,
+    "duplicates": 124,
+    "ignored_abuse": 98,
+    "ignored_repeated": 1047,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 583.3390600681305,
+   "pid": 21568,
+   "ws_mb": 102.3,
+   "private_mb": 86.6,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2888,
+    "replies_sent": 49,
+    "ignored_spam": 1523,
+    "duplicates": 131,
+    "ignored_abuse": 100,
+    "ignored_repeated": 1062,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 593.3635160923004,
+   "pid": 21568,
+   "ws_mb": 105.4,
+   "private_mb": 89.7,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2933,
+    "replies_sent": 49,
+    "ignored_spam": 1546,
+    "duplicates": 135,
+    "ignored_abuse": 103,
+    "ignored_repeated": 1077,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 603.3818271160126,
+   "pid": 21568,
+   "ws_mb": 89.8,
+   "private_mb": 74.1,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 2973,
+    "replies_sent": 49,
+    "ignored_spam": 1564,
+    "duplicates": 140,
+    "ignored_abuse": 105,
+    "ignored_repeated": 1092,
+    "cache_hits": 3,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 613.4044785499573,
+   "pid": 21568,
+   "ws_mb": 92.6,
+   "private_mb": 77.0,
+   "queue": 1,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3019,
+    "replies_sent": 51,
+    "ignored_spam": 1588,
+    "duplicates": 142,
+    "ignored_abuse": 105,
+    "ignored_repeated": 1110,
+    "cache_hits": 4,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 623.4299035072327,
+   "pid": 21568,
+   "ws_mb": 95.7,
+   "private_mb": 79.9,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3066,
+    "replies_sent": 51,
+    "ignored_spam": 1611,
+    "duplicates": 146,
+    "ignored_abuse": 108,
+    "ignored_repeated": 1127,
+    "cache_hits": 4,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 633.4557511806488,
+   "pid": 21568,
+   "ws_mb": 99.0,
+   "private_mb": 83.5,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3115,
+    "replies_sent": 51,
+    "ignored_spam": 1642,
+    "duplicates": 146,
+    "ignored_abuse": 111,
+    "ignored_repeated": 1142,
+    "cache_hits": 4,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 643.4873588085175,
+   "pid": 21568,
+   "ws_mb": 102.3,
+   "private_mb": 86.9,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3165,
+    "replies_sent": 53,
+    "ignored_spam": 1666,
+    "duplicates": 147,
+    "ignored_abuse": 113,
+    "ignored_repeated": 1163,
+    "cache_hits": 4,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 653.504912853241,
+   "pid": 21568,
+   "ws_mb": 106.7,
+   "private_mb": 91.3,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3227,
+    "replies_sent": 57,
+    "ignored_spam": 1693,
+    "duplicates": 149,
+    "ignored_abuse": 115,
+    "ignored_repeated": 1190,
+    "cache_hits": 5,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 663.5209608078003,
+   "pid": 21568,
+   "ws_mb": 90.6,
+   "private_mb": 74.9,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3276,
+    "replies_sent": 58,
+    "ignored_spam": 1716,
+    "duplicates": 151,
+    "ignored_abuse": 118,
+    "ignored_repeated": 1210,
+    "cache_hits": 5,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 673.5458345413208,
+   "pid": 21568,
+   "ws_mb": 93.2,
+   "private_mb": 78.3,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3331,
+    "replies_sent": 58,
+    "ignored_spam": 1743,
+    "duplicates": 154,
+    "ignored_abuse": 119,
+    "ignored_repeated": 1234,
+    "cache_hits": 5,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 683.5688185691833,
+   "pid": 21568,
+   "ws_mb": 96.8,
+   "private_mb": 81.0,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3383,
+    "replies_sent": 58,
+    "ignored_spam": 1772,
+    "duplicates": 156,
+    "ignored_abuse": 121,
+    "ignored_repeated": 1253,
+    "cache_hits": 5,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 693.6001133918762,
+   "pid": 21568,
+   "ws_mb": 100.5,
+   "private_mb": 84.8,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3438,
+    "replies_sent": 59,
+    "ignored_spam": 1794,
+    "duplicates": 158,
+    "ignored_abuse": 124,
+    "ignored_repeated": 1280,
+    "cache_hits": 5,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 703.6213800907135,
+   "pid": 21568,
+   "ws_mb": 103.7,
+   "private_mb": 88.1,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3488,
+    "replies_sent": 59,
+    "ignored_spam": 1827,
+    "duplicates": 158,
+    "ignored_abuse": 125,
+    "ignored_repeated": 1296,
+    "cache_hits": 5,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 713.6484324932098,
+   "pid": 21568,
+   "ws_mb": 107.9,
+   "private_mb": 92.3,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3550,
+    "replies_sent": 59,
+    "ignored_spam": 1861,
+    "duplicates": 163,
+    "ignored_abuse": 128,
+    "ignored_repeated": 1316,
+    "cache_hits": 5,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 723.6719512939453,
+   "pid": 21568,
+   "ws_mb": 90.6,
+   "private_mb": 75.1,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3606,
+    "replies_sent": 60,
+    "ignored_spam": 1889,
+    "duplicates": 164,
+    "ignored_abuse": 131,
+    "ignored_repeated": 1339,
+    "cache_hits": 5,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 733.6960883140564,
+   "pid": 21568,
+   "ws_mb": 93.4,
+   "private_mb": 77.6,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3658,
+    "replies_sent": 60,
+    "ignored_spam": 1911,
+    "duplicates": 168,
+    "ignored_abuse": 135,
+    "ignored_repeated": 1361,
+    "cache_hits": 5,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 743.7159142494202,
+   "pid": 21568,
+   "ws_mb": 96.6,
+   "private_mb": 81.0,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3710,
+    "replies_sent": 60,
+    "ignored_spam": 1931,
+    "duplicates": 174,
+    "ignored_abuse": 138,
+    "ignored_repeated": 1384,
+    "cache_hits": 5,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 753.7393181324005,
+   "pid": 21568,
+   "ws_mb": 100.6,
+   "private_mb": 85.0,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3769,
+    "replies_sent": 60,
+    "ignored_spam": 1953,
+    "duplicates": 179,
+    "ignored_abuse": 145,
+    "ignored_repeated": 1409,
+    "cache_hits": 5,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 763.7677109241486,
+   "pid": 21568,
+   "ws_mb": 103.7,
+   "private_mb": 88.2,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3818,
+    "replies_sent": 60,
+    "ignored_spam": 1982,
+    "duplicates": 181,
+    "ignored_abuse": 146,
+    "ignored_repeated": 1426,
+    "cache_hits": 5,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 773.7964050769806,
+   "pid": 21568,
+   "ws_mb": 107.0,
+   "private_mb": 91.6,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3867,
+    "replies_sent": 60,
+    "ignored_spam": 2004,
+    "duplicates": 183,
+    "ignored_abuse": 149,
+    "ignored_repeated": 1448,
+    "cache_hits": 5,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 783.8256912231445,
+   "pid": 21568,
+   "ws_mb": 90.2,
+   "private_mb": 74.3,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3915,
+    "replies_sent": 60,
+    "ignored_spam": 2031,
+    "duplicates": 184,
+    "ignored_abuse": 150,
+    "ignored_repeated": 1467,
+    "cache_hits": 5,
+    "guard_rejected": 2
+   }
+  },
+  {
+   "t": 793.8566670417786,
+   "pid": 21568,
+   "ws_mb": 93.2,
+   "private_mb": 77.6,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 3969,
+    "replies_sent": 61,
+    "ignored_spam": 2062,
+    "duplicates": 184,
+    "ignored_abuse": 151,
+    "ignored_repeated": 1488,
+    "cache_hits": 5,
+    "guard_rejected": 3
+   }
+  },
+  {
+   "t": 803.8709847927094,
+   "pid": 21568,
+   "ws_mb": 96.5,
+   "private_mb": 80.8,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 4017,
+    "replies_sent": 61,
+    "ignored_spam": 2087,
+    "duplicates": 185,
+    "ignored_abuse": 154,
+    "ignored_repeated": 1507,
+    "cache_hits": 5,
+    "guard_rejected": 3
+   }
+  },
+  {
+   "t": 813.8894519805908,
+   "pid": 21568,
+   "ws_mb": 99.8,
+   "private_mb": 84.1,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 4065,
+    "replies_sent": 61,
+    "ignored_spam": 2112,
+    "duplicates": 187,
+    "ignored_abuse": 158,
+    "ignored_repeated": 1524,
+    "cache_hits": 5,
+    "guard_rejected": 3
+   }
+  },
+  {
+   "t": 823.9163801670074,
+   "pid": 21568,
+   "ws_mb": 103.3,
+   "private_mb": 87.7,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 4121,
+    "replies_sent": 61,
+    "ignored_spam": 2137,
+    "duplicates": 190,
+    "ignored_abuse": 161,
+    "ignored_repeated": 1549,
+    "cache_hits": 5,
+    "guard_rejected": 3
+   }
+  },
+  {
+   "t": 833.9443089962006,
+   "pid": 21568,
+   "ws_mb": 106.3,
+   "private_mb": 90.7,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 4164,
+    "replies_sent": 61,
+    "ignored_spam": 2159,
+    "duplicates": 193,
+    "ignored_abuse": 161,
+    "ignored_repeated": 1567,
+    "cache_hits": 5,
+    "guard_rejected": 3
+   }
+  },
+  {
+   "t": 843.9624202251434,
+   "pid": 21568,
+   "ws_mb": 90.7,
+   "private_mb": 74.9,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 4219,
+    "replies_sent": 61,
+    "ignored_spam": 2190,
+    "duplicates": 194,
+    "ignored_abuse": 162,
+    "ignored_repeated": 1589,
+    "cache_hits": 5,
+    "guard_rejected": 3
+   }
+  },
+  {
+   "t": 853.9992461204529,
+   "pid": 21568,
+   "ws_mb": 93.4,
+   "private_mb": 77.9,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 4261,
+    "replies_sent": 61,
+    "ignored_spam": 2210,
+    "duplicates": 197,
+    "ignored_abuse": 163,
+    "ignored_repeated": 1607,
+    "cache_hits": 5,
+    "guard_rejected": 3
+   }
+  },
+  {
+   "t": 864.0237638950348,
+   "pid": 21568,
+   "ws_mb": 95.4,
+   "private_mb": 79.7,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 4303,
+    "replies_sent": 61,
+    "ignored_spam": 2234,
+    "duplicates": 199,
+    "ignored_abuse": 165,
+    "ignored_repeated": 1621,
+    "cache_hits": 5,
+    "guard_rejected": 3
+   }
+  },
+  {
+   "t": 874.0449831485748,
+   "pid": 21568,
+   "ws_mb": 99.3,
+   "private_mb": 83.7,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 4359,
+    "replies_sent": 63,
+    "ignored_spam": 2267,
+    "duplicates": 199,
+    "ignored_abuse": 167,
+    "ignored_repeated": 1640,
+    "cache_hits": 5,
+    "guard_rejected": 3
+   }
+  },
+  {
+   "t": 884.0651414394379,
+   "pid": 21568,
+   "ws_mb": 103.1,
+   "private_mb": 87.6,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 4419,
+    "replies_sent": 63,
+    "ignored_spam": 2296,
+    "duplicates": 203,
+    "ignored_abuse": 169,
+    "ignored_repeated": 1665,
+    "cache_hits": 5,
+    "guard_rejected": 3
+   }
+  },
+  {
+   "t": 894.0948095321655,
+   "pid": 21568,
+   "ws_mb": 107.1,
+   "private_mb": 91.6,
+   "queue": 0,
+   "dropped": 0,
+   "ollama_up": true,
+   "backing_off": false,
+   "counters": {
+    "messages_received": 4478,
+    "replies_sent": 63,
+    "ignored_spam": 2320,
+    "duplicates": 206,
+    "ignored_abuse": 169,
+    "ignored_repeated": 1697,
+    "cache_hits": 5,
+    "guard_rejected": 3
+   }
+  }
+ ],
+ "incarnations": [
+  {
+   "pid": 21568,
+   "launcher": 2732,
+   "start": 1.9973618984222412,
+   "end": 937.3299560546875
+  }
+ ],
+ "actions": {
+  "replied": 63,
+  "ignored": 4218,
+  "duplicate": 210,
+  "no_reply": 23
+ }
+}

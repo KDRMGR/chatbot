@@ -1,0 +1,81 @@
+soak: 180.0 min, backend=fake, work dir C:\Users\USER\AppData\Local\Temp\stealthbot-soak3h
+[  756.2s] ollama_refused_start {'planned_s': 45}
+[  801.2s] ollama_refused_end 
+[  803.3s] ollama_refused_recovered {'seconds': 2.1}
+[ 1620.2s] quiet_spell_start {'planned_s': 100}
+[ 1720.2s] quiet_spell_end 
+[ 2592.1s] ollama_hung_start {'planned_s': 90}
+[ 2682.1s] ollama_hung_end 
+[ 2696.6s] ollama_hung_recovered {'seconds': 14.4}
+[ 3888.3s] slow_ollama_with_burst_start {'planned_s': 60}
+[ 3948.3s] slow_ollama_with_burst_end 
+[ 3948.4s] slow_ollama_with_burst_recovered {'seconds': 0.1}
+[ 5184.2s] bot_killed_start {'planned_s': 0}
+[ 5192.7s] bot_killed_end 
+[ 6264.3s] ollama_reset_midrequest_start {'planned_s': 45}
+[ 6309.3s] ollama_reset_midrequest_end 
+[ 6321.6s] ollama_reset_midrequest_recovered {'seconds': 12.3}
+[ 7344.1s] quiet_spell_start {'planned_s': 100}
+[ 7444.1s] quiet_spell_end 
+[ 8424.1s] graceful_restart_and_replay_start {'planned_s': 0}
+[ 8428.2s] replayed_message_ids {'count': 60}
+[ 8428.2s] graceful_restart_and_replay_end 
+waiting for in-flight requests...
+[10803.1s] in_flight_left {'count': 0}
+
+=== WINDOWS ===
+baseline (first 40 s)          38 req  median 0.03s p95 0.1s  {'replied': 11, 'ignored': 11, 'duplicate': 2, 'no_reply': 14}  replied_by {'ai': 11}
+ollama_refused                 42 req  median 0.02s p95 2.1s  {'ignored': 27, 'replied': 11, 'duplicate': 3, 'no_reply': 1}  replied_by {'ai': 3, 'rule': 8}
+ollama_hung                    90 req  median 23.92s p95 59.2s  {'replied': 19, 'ignored': 39, 'duplicate': 7, 'no_reply': 25}  replied_by {'ai': 8, 'rule': 11}
+slow_ollama_with_burst        395 req  median 17.84s p95 24.7s  {'ignored': 253, 'replied': 24, 'duplicate': 10, 'dropped': 100, 'no_reply': 8}  replied_by {'ai': 24}
+bot_killed                     11 req  median 1.61s p95 1.7s  {'http0': 6, 'replied': 4, 'no_reply': 1}  replied_by {'ai': 4}
+ollama_reset_midrequest        41 req  median 0.01s p95 0.0s  {'replied': 12, 'ignored': 22, 'duplicate': 4, 'no_reply': 3}  replied_by {'ai': 2, 'rule': 10}
+graceful_restart_and_replay    65 req  median 0.04s p95 0.0s  {'http0': 2, 'replied': 2, 'no_reply': 1, 'duplicate': 60}  replied_by {'ai': 2}
+
+=== RESULTS ===
+PASS  every request got a normal answer (errors only during restarts, waits only during faults)
+      0 unexpected of 11009; 0 waited out under a fault; by action: {'replied': 2606, 'ignored': 7098, 'duplicate': 594, 'no_reply': 603, 'dropped': 100, 'http0': 8}
+PASS  normal operation: viewers are answered within 10 s (p95)
+      baseline median 0.03s, p95 0.1s, actions {'replied': 11, 'ignored': 11, 'duplicate': 2, 'no_reply': 14}
+PASS  ollama_refused: AI answers again within 60 s of the fault ending
+      recovery 2.1s; viewers answered during the fault: 11 (8 with prepared messages)
+PASS  ollama_hung: AI answers again within 60 s of the fault ending
+      recovery 14.4s; viewers answered during the fault: 16 (11 with prepared messages)
+PASS  slow_ollama_with_burst: AI answers again within 60 s of the fault ending
+      recovery 0.1s; viewers answered during the fault: 24 (0 with prepared messages)
+PASS  ollama_reset_midrequest: AI answers again within 60 s of the fault ending
+      recovery 12.3s; viewers answered during the fault: 12 (10 with prepared messages)
+PASS  bot_killed: answers viewers again after the restart
+      first reply 5.0s after the new process was up
+PASS  database integrity_check
+      PRAGMA integrity_check
+PASS  no message was answered twice
+      0 message(s) with more than one reply
+PASS  no platform message id stored twice
+      0 duplicated ids
+PASS  every reply the client was told about is recorded as sent
+      0 missing of 2606
+PASS  at most a couple of replies left in an unknown state by the hard kill
+      0 pending (stored, but the kill came before the send result was saved)
+PASS  proactive messages were sent during quiet spells
+      11 proactive messages
+PASS  sessions: a hard kill is recorded as a crash, clean stops as ended
+      ['crashed', 'ended', 'ended'] (expected ['crashed', 'ended', 'ended'])
+PASS  statistics were saved for every session (including the crashed one)
+      3 of 3 sessions have statistics
+PASS  message ids re-delivered after a restart were recognised, not answered again
+      60 re-delivered, actions {'duplicate': 60}
+PASS  no unhandled errors / tracebacks in the bot log
+      0 found
+PASS  error-level log lines (informational)
+      8 total; top: [(' app.ai.model_manager: Ollama unreachable; AI paused for 5s (rule-base', 3), (' app.ai.model_manager: Ollama unreachable; AI paused for 10s (rule-bas', 2), (' app.ai.model_manager: Ollama unreachable; AI paused for 20s (rule-bas', 2)]
+PASS  incoming queue stayed bounded (limit 200)
+      max queue 200
+PASS  memory of bot process 14128 is flat (no climb, no big peaks)
+      thirds of 86 min: 75 -> 76 -> 80 MB private, last vs middle +9 MB/hour; typical 77, peak 102 MB
+PASS  memory of bot process 23400 is flat (no climb, no big peaks)
+      thirds of 54 min: 75 -> 76 -> 76 MB private, last vs middle -1 MB/hour; typical 76, peak 79 MB
+PASS  memory of bot process 2644 is flat (no climb, no big peaks)
+      thirds of 39 min: 76 -> 76 -> 76 MB private, last vs middle +0 MB/hour; typical 76, peak 79 MB
+
+22/22 checks passed. Report: C:\Users\USER\OneDrive\Documents\chatbot\docs\benchmarks\phase7-soak-3h-fake-ollama.json
