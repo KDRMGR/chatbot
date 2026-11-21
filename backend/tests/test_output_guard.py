@@ -19,6 +19,15 @@ def test_removes_think_blocks_and_rejects_unterminated_ones():
     assert clean("<think>still thinking and never finished").reason == "think_unterminated"
 
 
+def test_single_asterisk_and_underscore_emphasis_is_removed_but_ordinary_text_is_not():
+    """Live chat shows markdown literally: 'this is *so* cool' appeared with asterisks on Kick."""
+    assert clean("Yeah, this is *so* cool, chat!").text == "Yeah, this is so cool, chat!"
+    assert clean("That was _really_ close, wow!").text == "That was really close, wow!"
+    assert clean("A *big* and *bold* move today, chat!").text == "A big and bold move today, chat!"
+    assert clean("Use snake_case names and 2*3 sums, chat!").text == "Use snake_case names and 2*3 sums, chat!"
+    assert clean("Five stars *****, chat is great!").text.startswith("Five stars")
+
+
 def test_cleans_labels_quotes_markdown_and_joins_lines():
     assert clean('StealthBot: "Nice one!\nWhat car is that?"').text == "Nice one! What car is that?"
     assert clean("**Love** that move, chat!").text == "Love that move, chat!"

@@ -29,7 +29,7 @@ _DEFAULTS: list[dict[str, Any]] = [
     },
     {
         "name": "QuizBot", "file": "quizbot.md",
-        "description": "Gaming and GTA questions and friendly challenges.",
+        "description": "Questions about the stream's game or show and friendly challenges.",
         "cooldown_seconds": 1500, "frequency": 0.5, "priority": 2,
         "categories": ["proactive_quiz"],
     },

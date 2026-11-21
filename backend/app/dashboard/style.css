@@ -202,3 +202,28 @@ label { display: block; margin: 0.8rem 0 0.25rem; color: var(--muted); font-size
 .dialog { width: min(28rem, 100%); }
 .dialog input { width: 100%; margin: 0.5rem 0; }
 [hidden] { display: none !important; }
+
+/* ---- Streams tab: which stream the bot comments in */
+.page.two .card.wide { grid-column: 1 / -1; }
+.stream-list { display: grid; gap: 0.5rem; margin-top: 0.6rem; }
+.stream-row { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: center; justify-content: space-between;
+  border: 1px solid var(--line); border-radius: 8px; padding: 0.6rem 0.8rem; }
+.stream-row.active { border-color: var(--ok); }
+.stream-main { display: flex; align-items: flex-start; gap: 0.6rem; min-width: 0; flex: 1 1 18rem; }
+.stream-main > div { min-width: 0; }
+.stream-name { font-weight: 600; overflow-wrap: anywhere; }
+.stream-detail, .stream-warn { display: block; color: var(--muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+.stream-warn { color: var(--warn); }
+.stream-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.stream-controls label { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; color: var(--muted); }
+.stream-controls input[type="number"] { width: 4.5rem; }
+.dot { flex: none; width: 0.7rem; height: 0.7rem; margin-top: 0.4rem; border-radius: 50%; background: var(--muted); }
+.dot.live { background: var(--ok); }
+.dot.offline { background: var(--bad); }
+.dot.off { background: transparent; border: 2px solid var(--muted); }
+.tag { font-size: 0.7rem; padding: 0.05rem 0.4rem; border-radius: 99px; border: 1px solid var(--line); margin-left: 0.4rem; color: var(--muted); }
+.tag.active { color: var(--ok); border-color: var(--ok); }
+.tag.chosen { color: var(--accent); border-color: var(--accent); }
+button.chosen { border-color: var(--accent); color: var(--accent); }
+.stream-now { margin: 0.4rem 0 0; font-size: 0.9rem; }
+.stream-now b { font-weight: 650; }

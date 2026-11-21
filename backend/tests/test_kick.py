@@ -617,6 +617,129 @@ async def test_a_signed_chat_delivery_reaches_the_pipeline(tmp_path):
     await close(rig)
 
 
+async def test_chat_from_another_channel_is_counted_but_never_answered(tmp_path):
+    """The app can be subscribed to a channel that is not ours (an experiment, an old subscription). Our replies go to OUR channel,
+    so answering that chat would put the answer in the wrong place."""
+    rig = await make_rig(tmp_path)
+    await connected(rig)
+    assert (await rig.deliver(chat_payload("hi from somewhere else", broadcaster_id=999))).status_code == 200
+    assert (await rig.deliver(chat_payload("hi from our own chat", broadcaster_id=777, message_id="aaaaaaaa-2222-3333-4444-555555555555"))).status_code == 200
+    await eventually(lambda: rig.received)
+    await asyncio.sleep(0.2)
+    assert [m.message for m in rig.received] == ["hi from our own chat"]
+    info = rig.adapter.details()
+    assert info["events"] == 2 and info["other_channel_events"] == 1 and info["ignored_events"] == 1  # delivery is still visible
+    await close(rig)
+
+
+async def test_it_chats_in_another_channel_reading_through_the_app_token_and_posting_as_the_account(tmp_path):
+    """The bot account (signed in) chats in a DIFFERENT channel: chat is read through a subscription made with the APP token,
+    answers are normal user messages addressed to that channel, and the bot's own messages are recognised by sender id."""
+    rig = await make_rig(tmp_path, kick_target_channel="otherchannel")
+    await connected(rig)
+    assert [(s["broadcaster_user_id"], s["event"]) for s in rig.fake.subscriptions] == [(555, "chat.message.sent")]  # not our own channel
+    assert any(c.get("grant_type") == "client_credentials" for c in rig.fake.token_calls)
+    info = rig.adapter.details()
+    assert info["channel"] == "otherchannel" and info["own_channel"] == "stealthmodegg" and info["target_channel"] == "otherchannel"
+    assert info["answering_in_own_channel"] is False and info["is_live"] is True
+    assert "chatting in otherchannel" in rig.adapter.status().detail and "signed in as StealthModeGG" in rig.adapter.status().detail
+
+    assert (await rig.deliver(chat_payload("hello from the other chat", broadcaster_id=555))).status_code == 200
+    assert (await rig.deliver(chat_payload("hello from our own chat", broadcaster_id=777, message_id="bbbbbbbb-2222-3333-4444-555555555555"))).status_code == 200
+    await eventually(lambda: rig.received)
+    await asyncio.sleep(0.2)
+    assert [m.message for m in rig.received] == ["hello from the other chat"]  # our own channel is the OTHER one now
+    assert rig.adapter.details()["other_channel_events"] == 1
+
+    result = await rig.adapter.send("Hey chat!")
+    assert result.ok
+    assert rig.fake.sent[-1] == {"content": "Hey chat!", "type": "user", "broadcaster_user_id": 555}  # never type 'bot' (own channel only)
+    assert rig.fake.sent_with == ["user"]  # chat:write only works with the signed-in account's token, never the app token
+
+    # the bot's message comes back as a chat event from OUR account in that channel: it must not be answered
+    await rig.deliver(chat_payload("Hey chat!", user_id=777, username="StealthModeGG", broadcaster_id=555,
+                                   message_id="cccccccc-2222-3333-4444-555555555555"))
+    await eventually(lambda: len(rig.received) == 2)
+    assert rig.received[1].is_bot_self is True
+    await close(rig)
+
+
+async def test_an_existing_subscription_for_the_other_channel_is_reused_after_a_restart(tmp_path):
+    rig = await make_rig(tmp_path, kick_target_channel="otherchannel")
+    await connected(rig)
+    posts_before = sum(1 for m, p in rig.fake.requests if m == "POST" and p.endswith("/events/subscriptions"))
+    await rig.adapter.stop()
+    await rig.adapter.start(rig.on_message)
+    await connected(rig)
+    posts_after = sum(1 for m, p in rig.fake.requests if m == "POST" and p.endswith("/events/subscriptions"))
+    assert posts_before == posts_after == 1 and len(rig.fake.subscriptions) == 1
+    await close(rig)
+
+
+async def test_a_channel_that_does_not_exist_is_reported_by_name_and_nothing_is_subscribed(tmp_path):
+    rig = await make_rig(tmp_path, kick_target_channel="nosuchchannel")
+    await eventually(lambda: rig.adapter.status().state is ConnectionState.ERROR, timeout=10)
+    assert "no channel called 'nosuchchannel'" in rig.adapter.status().detail
+    assert rig.fake.subscriptions == []
+    await close(rig)
+
+
+async def test_retarget_moves_between_the_own_channel_and_another_one(tmp_path):
+    rig = await make_rig(tmp_path)
+    await connected(rig)
+    assert rig.adapter.details()["answering_in_own_channel"] is True
+    await rig.adapter.retarget("OtherChannel")  # case does not matter
+    await connected(rig)
+    assert rig.adapter.details()["channel"] == "otherchannel" and rig.adapter.details()["last_event_s_ago"] is None
+    assert {s["broadcaster_user_id"] for s in rig.fake.subscriptions} == {777, 555}  # the own one stays (harmless: ignored)
+    await rig.adapter.retarget(None)
+    await connected(rig)
+    assert rig.adapter.details()["channel"] == "stealthmodegg" and rig.adapter.details()["answering_in_own_channel"] is True
+    assert (await rig.adapter.send("back home")).ok and rig.fake.sent[-1]["type"] == "bot"
+    await rig.adapter.stop()  # the streamer pressed Disconnect
+    await rig.adapter.retarget("otherchannel")
+    assert rig.adapter.status().state is ConnectionState.DISCONNECTED and rig.adapter._task is None  # stays stopped
+    await close(rig)
+
+
+async def test_the_app_token_is_cached_renewed_after_a_401_and_never_used_for_the_accounts_own_calls(tmp_path):
+    rig = await make_rig(tmp_path, kick_target_channel="otherchannel")
+    await connected(rig)
+    grants = lambda: sum(1 for c in rig.fake.token_calls if c.get("grant_type") == "client_credentials")  # noqa: E731
+    assert grants() == 1
+    await rig.api.list_subscriptions(app=True)
+    await rig.api.list_subscriptions(app=True)
+    assert grants() == 1  # cached
+    rig.fake.reject_tokens.add("app-1")
+    rows = await rig.api.list_subscriptions(app=True)  # Kick rejects the cached token: one new one is requested and the call retried
+    assert grants() == 2 and rows
+    await rig.api.me()  # the account's own calls use the account's token
+    assert grants() == 2
+    await close(rig)
+
+
+async def test_channel_lookup_by_name_is_batched_validated_and_tolerant(tmp_path):
+    rig = await make_rig(tmp_path, start=False)
+    found = await rig.api.channels_by_slug(["OtherChannel", "stealthmodegg", "nobody"])
+    assert set(found) == {"otherchannel", "stealthmodegg"} and found["otherchannel"]["is_live"] is True
+    assert found["otherchannel"]["title"] == "Live now" and found["otherchannel"]["viewers"] == 3
+    assert rig.fake.slug_lookups == [["otherchannel", "stealthmodegg", "nobody"]]  # ONE call, names lower-cased
+    assert await rig.api.channels_by_slug([]) == {} and await rig.api.channel_by_slug("nobody") is None
+    for bad in (["x" * 26], [f"c{n}" for n in range(51)]):
+        with pytest.raises(ValueError):
+            await rig.api.channels_by_slug(bad)
+    with pytest.raises(ValueError, match="needs the broadcaster"):
+        await rig.api.subscribe([("chat.message.sent", 1)], app=True)
+    await close(rig)
+
+
+def test_the_target_channel_setting_is_validated_and_normalised():
+    assert Settings(kick_target_channel="  StealhModeGG ").kick_target_channel == "stealhmodegg"
+    for bad in ["has space", "x" * 26, "-leading", "semi;colon", "https://kick.com/x"]:
+        with pytest.raises(ValueError, match="kick_target_channel"):
+            Settings(kick_target_channel=bad)
+
+
 async def test_forged_old_and_repeated_deliveries_are_not_processed(tmp_path):
     rig = await make_rig(tmp_path)
     await connected(rig)

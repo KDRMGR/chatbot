@@ -82,6 +82,19 @@ def test_system_prompt_contains_code_owned_safety_rules_and_the_personality(sett
     assert "10-35 words" in system
 
 
+def test_a_message_from_the_streamer_is_never_answered_like_a_new_viewer(settings):
+    """The bot welcomed the channel owner to their own stream ("anyone there" -> "Welcome to the stream!")."""
+    pm = PromptManager(settings)
+    profile = profiles()[0]
+    common = dict(profile=profile, category=Category.GREETING, username="Owner", message="anyone there", context_text="c",
+                  game="GTA 6", avoid=[], is_new_viewer=True)
+    streamer = pm.build(**common, is_streamer=True)[1]["content"]
+    viewer = pm.build(**common)[1]["content"]
+    assert f"from the streamer, {settings.streamer_name}" in streamer and "Never welcome them" in streamer
+    assert "new to the stream" not in streamer  # even when the pipeline thinks the account is new
+    assert "new to the stream" in viewer and "from the streamer" not in viewer
+
+
 def test_proactive_prompts_have_no_viewer_block_and_include_avoid_list(settings):
     pm = PromptManager(settings)
     user = pm.build(profile=profiles()[4], category=Category.PROACTIVE_QUIET, username=None, message=None,

@@ -60,6 +60,9 @@ def read_secret_file(path: str) -> str:
 async def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--client-id", help="your Kick app's Client ID (first time only; the secret is asked for, hidden)")
+    ap.add_argument("--no-browser", action="store_true",
+                    help="print the sign-in address but do not open any browser (open it yourself in a private window or "
+                         "another browser, signed in as the account the bot should work for)")
     ap.add_argument("--secret-file", metavar="PATH", help="read the secret from this file (one line, nothing else) instead of the hidden prompt; delete the file afterwards")
     ap.add_argument("--port", type=int, help="sign-in redirect port (default: STEALTHBOT_KICK_OAUTH_PORT, 8789)")
     args = ap.parse_args()
@@ -97,7 +100,10 @@ async def main() -> int:
         print(f"Redirect URI used for this sign-in: {redirect_uri_for(port)}")
         print("It must be saved EXACTLY like this in your Kick developer app, or Kick will refuse the sign-in.\n")
         try:
-            tokens = await run_loopback_login(http, client, port=port)
+            if args.no_browser:
+                tokens = await run_loopback_login(http, client, port=port, opener=lambda _url: True)
+            else:
+                tokens = await run_loopback_login(http, client, port=port)
         except KickOAuthError as exc:
             print(f"\nSign-in failed: {exc.error}. {HINTS.get(exc.error, exc.description)}")
             if exc.status or exc.description:  # what Kick itself said; it never contains our secret

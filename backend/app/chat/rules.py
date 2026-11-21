@@ -14,7 +14,7 @@ _TEMPLATES: dict[str, list[str]] = {
     "greeting": [
         "Welcome to the stream, {user}! 👋 What are you playing lately?",
         "Hey {user}, glad you're here! Grab a seat and enjoy the chaos.",
-        "Hi {user}! Welcome in, have you played much GTA yourself?",
+        "Hi {user}! Welcome in, how long have you been following the stream?",
         "Welcome {user}! Chat's friendly, jump in anytime.",
     ],
     "question": [

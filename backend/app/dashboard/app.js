@@ -391,7 +391,7 @@ async function refresh() {
 
 /* ------------------------------------------------------------------ tabs */
 const TAB_STORE = "stealthbot.tab";
-const TABS = ["live", "personalities", "ai", "scheduler", "history"];
+const TABS = ["live", "streams", "personalities", "ai", "scheduler", "history"];
 
 function showTab(name) {
   if (!TABS.includes(name)) name = "live";

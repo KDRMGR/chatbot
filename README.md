@@ -10,6 +10,8 @@ approval, PC load, prompts, AI settings, limits, history, logs, stop/restart, mo
 is built and tested against a fake Kick, **awaiting live verification** (`docs/phase4-kick.md`; setup in
 `docs/phase4-kick-setup.md`: Kick only offers webhooks, which need a tunnel). Proactive
 engagement (the bot starts conversations when chat is quiet) is built and tested on the simulator (`docs/phase5-scheduler.md`).
+The bot can follow a **watch list of streams** and, as a fail-safe, start with whichever one is live when you have not selected a stream
+(dashboard tab Streams, `docs/stream-selection.md`; tested with fakes, YouTube side not yet run live).
 Reliability testing is partly done (`docs/phase7-reliability.md`: failure injection against the real bot, memory and duplicate
 checks; the real 3-6 hour runs still need your accounts). Gameplay awareness is a later phase. See `docs/` for the details and
 measured results.

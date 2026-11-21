@@ -264,7 +264,7 @@ class ChatProcessor:
             try:
                 gen = await self._generator.generate(
                     profile, cls.category, platform=msg.platform.value, username=msg.username,
-                    message=msg.message, is_new_viewer=is_new,
+                    message=msg.message, is_new_viewer=is_new, is_streamer=msg.is_streamer,
                 )
                 return _Reply(gen.text, profile.name, "ai", gen.model, gen.latency_ms)
             except GenerationFailed as exc:

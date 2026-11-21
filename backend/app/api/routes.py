@@ -17,6 +17,8 @@ from ..chat.processor import ApprovalBlocked
 from ..personalities.defaults import default_personality_rows
 from ..scheduler.engagement import SchedulerSettingsError
 from ..services.log_tail import LEVELS, tail_log
+from ..knowledge.topic import TopicError
+from ..streams.model import StreamsError
 from ..services.runtime_settings import (
     AI_FIELDS, RATE_FIELDS, SettingsError, ai_values, apply_ai, apply_rate_limits, parse_numbers, rate_values,
 )
@@ -442,6 +444,129 @@ async def platform_connect(request: Request) -> JSONResponse:
     return JSONResponse({"platform": name, "state": adapter.status().state.value})
 
 
+# ---------------------------------------------------------------------------- what the stream is about (game + background note)
+@protected
+async def topic_status(request: Request) -> JSONResponse:
+    return JSONResponse(_c(request).topic.snapshot())
+
+
+@protected
+async def topic_change(request: Request) -> JSONResponse:
+    """Set the game/topic and optional search words, look it up on the web, or save the streamer's own notes.
+
+    ``{"game": "...", "hint": "...", "lookup": true}`` or ``{"notes": "..."}`` (own notes; empty text clears the note).
+    A failed web lookup is not an HTTP error: the game is still changed and the problem is reported in ``error``."""
+    topic = _c(request).topic
+    body = await _json_body(request)
+    if not isinstance(body, dict):
+        raise ValidationFailed([{"loc": ["body"], "msg": "must be an object"}])
+    errors = [{"loc": [k], "msg": "unknown setting"} for k in body if k not in ("game", "hint", "notes", "lookup")]
+    for key in ("game", "hint", "notes"):
+        if key in body and not isinstance(body[key], str):
+            errors.append({"loc": [key], "msg": "must be text"})
+    if "lookup" in body and not isinstance(body["lookup"], bool):
+        errors.append({"loc": ["lookup"], "msg": "must be true or false"})
+    if errors:
+        raise ValidationFailed(errors)
+    try:
+        if "game" in body:
+            await topic.set_game(body["game"], body.get("hint"))
+        elif "hint" in body:
+            await topic.set_game(topic.snapshot()["game"], body["hint"])
+        if "notes" in body:
+            return JSONResponse(await topic.set_manual_notes(body["notes"]))
+        if body.get("lookup", True):
+            await topic.refresh()
+    except TopicError as exc:
+        if exc.invalid_input:
+            raise ValidationFailed([{"loc": ["game"], "msg": str(exc)}]) from exc
+        topic.error = str(exc)  # the game change itself worked; show why the lookup did not
+    return JSONResponse(topic.snapshot())
+
+
+# ---------------------------------------------------------------------------- which stream the bot comments in
+def _streams(c: Any):  # noqa: ANN202
+    return c.streams
+
+
+def _unknown_stream(target_id: str) -> JSONResponse:
+    return JSONResponse({"detail": f"Unknown stream {target_id!r}"}, status_code=404)
+
+
+@protected
+async def streams_status(request: Request) -> JSONResponse:
+    return JSONResponse(_streams(_c(request)).snapshot())
+
+
+@protected
+async def streams_add(request: Request) -> JSONResponse:
+    director = _streams(_c(request))
+    try:
+        target = await director.add_target(await _json_body(request))
+    except StreamsError as exc:
+        raise ValidationFailed(exc.errors) from exc
+    return JSONResponse({"target": target, **director.snapshot()}, status_code=201)
+
+
+@protected
+async def streams_update(request: Request) -> JSONResponse:
+    director = _streams(_c(request))
+    target_id = request.path_params["target_id"]
+    try:
+        await director.update_target(target_id, await _json_body(request))
+    except KeyError:
+        return _unknown_stream(target_id)
+    except StreamsError as exc:
+        raise ValidationFailed(exc.errors) from exc
+    return JSONResponse(director.snapshot())
+
+
+@protected
+async def streams_remove(request: Request) -> JSONResponse:
+    director = _streams(_c(request))
+    target_id = request.path_params["target_id"]
+    try:
+        await director.remove_target(target_id)
+    except KeyError:
+        return _unknown_stream(target_id)
+    except StreamsError as exc:
+        raise ValidationFailed(exc.errors) from exc
+    return JSONResponse(director.snapshot())
+
+
+@protected
+async def streams_select(request: Request) -> JSONResponse:
+    """Choose the stream the bot must be in (``{"target_id": null}`` = nothing selected: fully automatic)."""
+    director = _streams(_c(request))
+    body = await _json_body(request)
+    if not isinstance(body, dict) or "target_id" not in body or not (body["target_id"] is None or isinstance(body["target_id"], str)):
+        raise ValidationFailed([{"loc": ["target_id"], "msg": "must be a stream id or null"}])
+    try:
+        await director.select(body["target_id"])
+    except KeyError:
+        return _unknown_stream(str(body["target_id"]))
+    except StreamsError as exc:
+        raise ValidationFailed(exc.errors) from exc
+    return JSONResponse(director.snapshot())
+
+
+@protected
+async def streams_settings(request: Request) -> JSONResponse:
+    director = _streams(_c(request))
+    try:
+        return JSONResponse(await director.update_settings(await _json_body(request)))
+    except StreamsError as exc:
+        raise ValidationFailed(exc.errors) from exc
+
+
+@protected
+async def streams_check(request: Request) -> JSONResponse:
+    """Look at every switched-on stream right now (uses a little YouTube quota)."""
+    director = _streams(_c(request))
+    await director.tick()
+    return JSONResponse(director.snapshot())
+
+
 @protected
 async def stop_bot(request: Request) -> JSONResponse:
     """Stop (or restart) the whole bot. Needs the bot to have been started with scripts\\start.bat (python -m app.run)."""
@@ -534,6 +659,15 @@ routes = [
     Route("/api/rate-limits/{platform}", change_rate_limits, methods=["POST"]),
     Route("/api/platforms/{name}/disconnect", platform_disconnect, methods=["POST"]),
     Route("/api/platforms/{name}/connect", platform_connect, methods=["POST"]),
+    Route("/api/topic", topic_status, methods=["GET"]),
+    Route("/api/topic", topic_change, methods=["POST"]),
+    Route("/api/streams", streams_status, methods=["GET"]),
+    Route("/api/streams/targets", streams_add, methods=["POST"]),
+    Route("/api/streams/targets/{target_id}", streams_update, methods=["POST"]),
+    Route("/api/streams/targets/{target_id}/remove", streams_remove, methods=["POST"]),
+    Route("/api/streams/select", streams_select, methods=["POST"]),
+    Route("/api/streams/settings", streams_settings, methods=["POST"]),
+    Route("/api/streams/check", streams_check, methods=["POST"]),
     Route("/api/control/stop", stop_bot, methods=["POST"]),
     Route("/api/approvals", approvals, methods=["GET"]),
     Route("/api/approvals/{entry_id}/approve", approve_reply, methods=["POST"]),

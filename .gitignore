@@ -1,6 +1,11 @@
-# secrets and local state
+# secrets and local state (the first block is a safety net: any env/token/key-looking file stays out of git)
 .env
 backend/.env
+*.env
+!*.env.example
+!.env.example
+*supabase*
+*token*
 *secret*
 *.dpapi
 *.pem

@@ -77,6 +77,7 @@ class YouTubeAdapter(PlatformAdapter):
         self._own_channel_title: str = ""
         self._chat_id: str | None = None
         self._video_id: str | None = None
+        self._override_video: str | None = None  # set by the stream director: follow this live video instead of discovering one
         self._resume: dict[str, str] = {}  # live chat id -> last nextPageToken (resume without duplicates)
         self._seen: deque[str] = deque(maxlen=5000)
         self._seen_set: set[str] = set()
@@ -105,12 +106,21 @@ class YouTubeAdapter(PlatformAdapter):
         self._set(ConnectionState.DISCONNECTED, "stopped")
         await self._flush_bg()
 
+    async def retarget(self, video_id: str | None) -> None:
+        """Follow this live video instead of the normal discovery (None = normal discovery again). If the adapter is
+        running it reconnects to the new stream; if it was stopped (for example from the dashboard) it stays stopped."""
+        self._override_video = video_id
+        if self._task is not None and not self._task.done() and self._on_message is not None:
+            await self.stop()
+            await self.start(self._on_message)
+
     def status(self) -> ConnectionStatus:
         return self._status
 
     def details(self) -> dict[str, Any]:
         return {
             "channel": self._own_channel_title or None, "video_id": self._video_id, "live_chat_id": self._chat_id,
+            "video_override": self._override_video,
             "permission": "youtube.force-ssl (read chat, post messages, find the stream)",
             "transport": "stream" if (self._s.youtube_use_streaming and not self._stream_disabled) else "polling",
             "quota": self._quota.snapshot(), **self.stats,
@@ -207,6 +217,11 @@ class YouTubeAdapter(PlatformAdapter):
 
     async def _discover(self) -> tuple[str, str | None] | None:
         s = self._s
+        if self._override_video:  # chosen by the stream director (a stream from the watch list)
+            self._guard("videos.list")
+            chat_id = await self._api.video_chat_id(self._override_video)
+            await self._persist_quota()
+            return (chat_id, self._override_video) if chat_id else None
         if s.youtube_live_chat_id:
             return s.youtube_live_chat_id, s.youtube_video_id
         if s.youtube_video_id:

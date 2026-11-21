@@ -162,7 +162,13 @@ class WebhookVerifier:
 def build_webhook_app(
     verifier: WebhookVerifier, on_event: Callable[[VerifiedEvent], Awaitable[None]], *, max_body: int = MAX_BODY_BYTES,
 ) -> Starlette:
+    calls = {"n": 0}
+
     async def receive(request: Request) -> JSONResponse:
+        calls["n"] += 1
+        if calls["n"] <= 50:  # proof that Kick (or anyone) reached the listener at all; headers only, never the body
+            logger.info("Kick webhook call #%d: event=%s, %s bytes declared", calls["n"],
+                        str(request.headers.get(H_TYPE, "?"))[:40], str(request.headers.get("content-length", "?"))[:10])
         declared = request.headers.get("content-length")
         if declared is not None and (not declared.isdigit() or int(declared) > max_body):
             return JSONResponse({"detail": "body too large"}, status_code=413)

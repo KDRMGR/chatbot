@@ -10,7 +10,7 @@ import httpx
 
 from ...security.credential_store import CredentialStore
 from ..youtube.oauth import ClientConfig, TokenSet
-from .oauth import KickOAuthError, refresh_tokens, revoke_token
+from .oauth import KickOAuthError, client_credentials, refresh_tokens, revoke_token
 
 logger = logging.getLogger(__name__)
 CLIENT_KEY = "kick_client"
@@ -31,6 +31,8 @@ class KickAuth:
         self._client: ClientConfig | None = None
         self._tokens: TokenSet | None = None
         self._lock = asyncio.Lock()
+        self._app_token: TokenSet | None = None  # the app's own token (memory only: asking for a new one is free and instant)
+        self._app_lock = asyncio.Lock()
         self.reauth_required = False
 
     def is_configured(self) -> bool:
@@ -66,6 +68,17 @@ class KickAuth:
             if tokens.expired(self._clock()):
                 tokens = await self._refresh(client, tokens)
             return tokens.access_token
+
+    async def app_access_token(self, *, renew: bool = False) -> str:
+        """The app token (client_credentials), for things that are not about the signed-in account: reading another channel's
+        chat events. Needs only the stored client id and secret. Kept in memory and renewed shortly before it expires."""
+        async with self._app_lock:
+            if renew or self._app_token is None or self._app_token.expired(self._clock()):
+                data = self._store.load(CLIENT_KEY)
+                if data is None:
+                    raise NotAuthorized("Kick is not authorised yet (run scripts\\kick_login.py)")
+                self._app_token = await client_credentials(self._http, ClientConfig.from_dict(data), self._clock)
+            return self._app_token.access_token
 
     async def force_refresh(self) -> str:
         """After a 401: the access token was rejected although we thought it was valid."""

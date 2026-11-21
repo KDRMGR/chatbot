@@ -115,6 +115,7 @@ def make_settings(tmp_path):
             state_dir=tmp_path, primary_model="primary-model", fallback_model="fallback-model",
             generation_timeout_s=5, generation_deadline_s=10, warmup_timeout_s=10,
             model_recheck_interval_s=60, health_interval_s=3600,
+            topic_lookup_enabled=False,  # tests never touch the real Wikipedia; test_topic.py switches it on with a fake one
         )
         base.update(overrides)
         return Settings(**base)
@@ -132,7 +133,7 @@ async def make_app_client(make_settings, fake_ollama):
     stack: list[Any] = []
 
     async def _make(*, keep_cooldowns: bool = False, youtube: Any = None, youtube_credentials: bool = True,
-                    kick: Any = None, **overrides: Any):
+                    kick: Any = None, topic: Any = None, **overrides: Any):
         if kick is not None:
             overrides.setdefault("kick_enabled", True)
             overrides.setdefault("kick_webhook_port", 0)  # any free port
@@ -160,6 +161,7 @@ async def make_app_client(make_settings, fake_ollama):
             settings, ollama_transport=httpx.MockTransport(fake_ollama.handler),
             youtube_transport=httpx.MockTransport(youtube.handler) if youtube is not None else None,
             kick_transport=httpx.MockTransport(kick.handler) if kick is not None else None,
+            topic_transport=httpx.MockTransport(topic.handler) if topic is not None else None,
         )
         ctx = app.router.lifespan_context(app)
         await ctx.__aenter__()

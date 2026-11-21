@@ -45,6 +45,8 @@ from .platforms.youtube.api import YouTubeApi
 from .platforms.youtube.credentials import YouTubeAuth
 from .platforms.youtube.quota import QuotaTracker
 from .scheduler.engagement import EngagementScheduler
+from .streams.director import StreamDirector
+from .knowledge.topic import TopicBriefing
 from .security.credential_store import CredentialStore
 from .services.controls import RuntimeControls
 from .services.maintenance import run_gc_loop
@@ -79,11 +81,14 @@ class Container:
     scheduler: Any = None  # EngagementScheduler (proactive messages)
     system_stats: Any = None  # SystemStats (CPU / RAM / GPU readings)
     ingest: Any = None  # what platform adapters call for every incoming message (the dashboard's Connect button needs it)
+    streams: Any = None  # StreamDirector (which stream the bot comments in)
+    topic: Any = None  # TopicBriefing (what the stream is about: game name + a short background note)
 
 
 def create_app(
     settings: Settings | None = None, *, ollama_transport: httpx.AsyncBaseTransport | None = None,
     youtube_transport: httpx.AsyncBaseTransport | None = None, kick_transport: httpx.AsyncBaseTransport | None = None,
+    topic_transport: httpx.AsyncBaseTransport | None = None,
 ) -> Starlette:
     cfg = settings or get_settings()
 
@@ -121,6 +126,11 @@ def create_app(
         context = SessionContext(
             cfg.streamer_name, cfg.current_game, started_at=session_manager.started_at, max_chat=cfg.context_chat_lines
         )
+        async def save_topic(state: dict[str, Any]) -> None:
+            await repo.set_setting("topic.state", json.dumps(state), now_utc())
+
+        topic = TopicBriefing(cfg, context, transport=topic_transport, save=save_topic)
+        await topic.load(await repo.get_setting("topic.state"))  # the game and background note saved from the dashboard earlier
         recent = RecentReplies(cfg.recent_reply_memory)
         personalities = PersonalityManager(PersonalityProfile.from_row(r) for r in await repo.list_personalities())
         ollama = OllamaClient(cfg.ollama_host, transport=ollama_transport)
@@ -136,6 +146,8 @@ def create_app(
         youtube_http: httpx.AsyncClient | None = None
         youtube_api: YouTubeApi | None = None
         youtube: YouTubeAdapter | None = None
+        quota: QuotaTracker | None = None
+        persist_quota: Any = None
         if cfg.youtube_enabled:
             youtube_http = httpx.AsyncClient(transport=youtube_transport, trust_env=False, timeout=20.0)
             quota = QuotaTracker(cfg.youtube_daily_quota)
@@ -157,6 +169,9 @@ def create_app(
 
             youtube = YouTubeAdapter(cfg, youtube_api, quota, log_event=log_youtube, save_quota=save_quota)
             adapters[Platform.YOUTUBE] = youtube
+
+            async def persist_quota() -> None:  # the stream director's checks use quota too
+                await save_quota(quota.dump())
 
         kick_http: httpx.AsyncClient | None = None
         kick_api: KickApi | None = None
@@ -187,18 +202,30 @@ def create_app(
             except ValueError:
                 logger.warning("ignoring unreadable saved scheduler settings")
         processor.activity = scheduler  # the pipeline tells it when viewers and the bot speak
+
+        async def save_streams(config_dict: dict[str, Any]) -> None:
+            await repo.set_setting("streams.config", json.dumps(config_dict), now_utc())
+
+        async def log_streams(kind: str, message: str) -> None:
+            await repo.log_connection("streams", kind, message, now_utc())
+
+        director = StreamDirector(
+            youtube=youtube, youtube_api=youtube_api, quota=quota, kick=adapters.get(Platform.KICK), save=save_streams,
+            log_event=log_streams, persist_quota=persist_quota, first_delay_s=cfg.streams_first_check_delay_s)
+        await director.load(await repo.get_setting("streams.config"))  # the watch list and the selection, saved earlier
         app.state.container = Container(
             settings=cfg, engine=engine, repo=repo, ollama=ollama, model_manager=model_manager,
             generator=generator, processor=processor, session_manager=session_manager, metrics=metrics,
             controls=controls, context=context, personalities=personalities, adapters=adapters,
             api_token=load_or_create_token(cfg.api_token_file), youtube=youtube, scheduler=scheduler,
-            system_stats=SystemStats(),
+            system_stats=SystemStats(), streams=director, topic=topic,
         )
 
         async def ingest(message):  # noqa: ANN001, ANN202 - what platform adapters call for every incoming message
             await processor.submit(message, wait=False)
 
         app.state.container.ingest = ingest
+        director.ingest = ingest
 
         await processor.start()
         for adapter in adapters.values():  # each adapter isolates its own failures (a YouTube outage never stops the rest)
@@ -211,6 +238,8 @@ def create_app(
             asyncio.create_task(session_manager.run_flush_loop(), name="statistics"),
             asyncio.create_task(run_gc_loop(cfg.gc_interval_s), name="memory-housekeeping"),
             asyncio.create_task(processor.run_approval_sweeper(), name="approval-sweeper"),
+            asyncio.create_task(director.run(), name="stream-director"),
+            asyncio.create_task(topic.startup_refresh(), name="topic-lookup"),  # one web lookup at start; failure is harmless
         ]
         logger.info("Ready on http://%s:%s (API token file: %s)", cfg.host, cfg.port, cfg.api_token_file)
         try:

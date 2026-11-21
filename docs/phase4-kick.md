@@ -77,6 +77,21 @@ limits, padding comparison, key size, `s >= n`, echo by id and by text, loopback
 sent, 401 retry, acknowledgement on our own errors); every one is caught. Three were missed at first (the streamed size limit,
 `s >= n`, echo by id) and got tests.
 
+## Chatting in ANOTHER channel (added 2026-11-22; verified live up to the first reply)
+A separate **bot account** can chat in a different channel (for example the bot account `saraxak` in `stealhmodegg`):
+`STEALTHBOT_KICK_TARGET_CHANNEL=stealhmodegg` in `backend\.env`.
+
+| Part | How |
+|---|---|
+| Reading that channel's chat | a webhook subscription made with the **app token** (`client_credentials`, no account, about 60 days; the channel must be named). **Verified live:** Kick accepted it and delivered chat from that channel to the bot through the tunnel |
+| Answering | `POST /chat` as `type: "user"` with that channel's `broadcaster_user_id`, with the **signed-in account's** token (the `bot` type can only post to the token's own channel; the app token cannot post). The message appears under the bot account's name |
+| Own messages | recognised by the sender id of the signed-in account, so the bot never answers itself |
+| Safety | events for any other channel (old subscriptions) are counted and ignored; approval mode, rate limits and the output guard apply as everywhere |
+
+Documented in Kick's swagger: subscription with a user token ignores `broadcaster_user_id`; with an app token it is required. **Not
+yet verified:** a posted reply appearing in the other channel's chat (needs your approval click), and Kick's rules for bots in a
+channel you do not own. Use it only in channels you own or have permission for. The bot account's name or bio should say it is a bot.
+
 ## Acceptance for Phase 4
 
 | Requirement | Status |

@@ -166,7 +166,7 @@ class Rig:
     def bot_env(self) -> dict:
         env = dict(os.environ)
         env.update({
-            "STEALTHBOT_STATE_DIR": str(self.state), "STEALTHBOT_PORT": str(BOT_PORT),
+            "STEALTHBOT_STATE_DIR": str(self.state), "STEALTHBOT_PORT": str(BOT_PORT), "STEALTHBOT_TOPIC_LOOKUP_ENABLED": "false",
             "STEALTHBOT_OLLAMA_HOST": f"http://127.0.0.1:{PROXY_PORT}",
             # short proactive timers so quiet spells of about a minute are enough to see proactive messages
             "STEALTHBOT_PROACTIVE_PLATFORMS": "simulator", "STEALTHBOT_PROACTIVE_QUIET_AFTER_S": "25",

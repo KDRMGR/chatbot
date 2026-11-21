@@ -125,7 +125,15 @@ class FakeKick:
         self.fail: dict[str, int] = {}  # "METHOD /path" -> status code
         self.subscribe_error: str | None = None
         self.chat_sent_flag = True
+        # other channels that exist on this fake Kick (looked up with GET /channels?slug=...)
+        self.other_channels: dict[str, dict[str, Any]] = {
+            "otherchannel": {"broadcaster_user_id": 555, "slug": "otherchannel", "stream_title": "Live now",
+                             "stream": {"is_live": True, "viewer_count": 3}},
+        }
+        self.slug_lookups: list[list[str]] = []
+        self.sent_with: list[str] = []  # "user" or "app" token for every chat post
         self._tokens = 0
+        self._app_tokens = 0
         self._ids = 0
 
     def handler(self, request: httpx.Request) -> httpx.Response:
@@ -145,13 +153,24 @@ class FakeKick:
             return httpx.Response(401, json={"message": "invalid token"})
         if path == "/public/v1/users" and method == "GET":
             return httpx.Response(200, json={"data": [self.me], "message": "OK"})
+        is_app = token.startswith("app-")
         if path == "/public/v1/channels" and method == "GET":
-            return httpx.Response(200, json={"data": [self.channel], "message": "OK"})
+            slugs = request.url.params.get_list("slug")
+            if not slugs:
+                return httpx.Response(200, json={"data": [self.channel], "message": "OK"})
+            self.slug_lookups.append(slugs)
+            known = {self.channel["slug"]: self.channel, **self.other_channels}
+            return httpx.Response(200, json={"data": [known[s] for s in slugs if s in known], "message": "OK"})
         if path == "/public/v1/events/subscriptions":
-            if method == "GET":
-                return httpx.Response(200, json={"data": list(self.subscriptions), "message": "OK"})
+            if method == "GET":  # the user token sees its own channel's subscriptions, the app token every subscription of the app
+                own_id = self.channel["broadcaster_user_id"]
+                rows = [s for s in self.subscriptions if is_app or s.get("broadcaster_user_id", own_id) == own_id]
+                return httpx.Response(200, json={"data": rows, "message": "OK"})
             if method == "POST":
                 body = json.loads(request.content)
+                if is_app and body.get("broadcaster_user_id") is None:
+                    return httpx.Response(400, json={"message": "broadcaster_user_id is required with an app access token"})
+                broadcaster = body["broadcaster_user_id"] if is_app else self.channel["broadcaster_user_id"]  # a user token ignores it
                 results = []
                 for ev in body["events"]:
                     if self.subscribe_error:
@@ -160,7 +179,7 @@ class FakeKick:
                     self._ids += 1
                     sid = f"sub-{self._ids}"
                     self.subscriptions.append({"id": sid, "event": ev["name"], "version": ev["version"], "method": "webhook",
-                                               "broadcaster_user_id": 777})
+                                               "broadcaster_user_id": broadcaster})
                     results.append({"name": ev["name"], "version": ev["version"], "subscription_id": sid})
                 return httpx.Response(200, json={"data": results, "message": "OK"})
             if method == "DELETE":
@@ -168,7 +187,10 @@ class FakeKick:
                 self.subscriptions = [s for s in self.subscriptions if s["id"] not in ids]
                 return httpx.Response(204)
         if path == "/public/v1/chat" and method == "POST":
+            if is_app:
+                return httpx.Response(403, json={"message": "chat:write needs a user access token"})
             body = json.loads(request.content)
+            self.sent_with.append("user")
             self.sent.append(body)
             return httpx.Response(200, json={"data": {"is_sent": self.chat_sent_flag, "message_id": f"msg-{len(self.sent):08d}-aaaa-bbbb-cccc-dddddddddddd"},
                                              "message": "OK"})
@@ -179,6 +201,9 @@ class FakeKick:
         if request.url.path.endswith("/revoke"):
             return httpx.Response(200, json={})
         self.token_calls.append(form)
+        if form.get("grant_type") == "client_credentials":
+            self._app_tokens += 1
+            return httpx.Response(200, json={"access_token": f"app-{self._app_tokens}", "token_type": "Bearer", "expires_in": 5184000})
         if form.get("grant_type") == "refresh_token" and self.refresh_fails:
             return httpx.Response(self.refresh_fails, json={"error": "Invalid request"})
         self._tokens += 1

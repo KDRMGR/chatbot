@@ -82,6 +82,45 @@ async def test_connects_skips_the_backlog_and_delivers_new_messages(make_rig):
     assert any(kind == "connected" for kind, _ in rig.events) and rig.saved  # logged + quota persisted
 
 
+async def test_retarget_moves_the_adapter_to_the_chosen_live_video_and_back(make_rig):
+    """The stream director picks a video from the watch list: the adapter must reconnect to THAT chat, then return to
+    its normal discovery when told to."""
+    rig = make_rig()
+    rig.api.script["list_messages"] = [page([], "t1")]
+    await rig.start()
+    await rig.until_state(ConnectionState.CONNECTED)
+    assert rig.adapter.details()["video_id"] == "VID1" and rig.adapter.details()["video_override"] is None
+    rig.api.script["video_chat_id"] = ["CHAT-OTHER"]
+    await rig.adapter.retarget("OTHERVIDEO")
+    await eventually(lambda: rig.adapter.details()["live_chat_id"] == "CHAT-OTHER")
+    assert rig.adapter.details()["video_id"] == "OTHERVIDEO" and rig.adapter.details()["video_override"] == "OTHERVIDEO"
+    assert ("video_chat_id", "OTHERVIDEO") in rig.api.calls
+    discovered_before = rig.api.count("active_broadcast")
+    await rig.adapter.retarget(None)  # back to the signed-in account's own stream
+    await eventually(lambda: rig.adapter.details()["live_chat_id"] == "CHAT1")
+    assert rig.api.count("active_broadcast") > discovered_before and rig.adapter.details()["video_override"] is None
+
+
+async def test_retarget_to_a_video_that_is_not_live_waits_instead_of_failing(make_rig):
+    rig = make_rig()
+    rig.api.script["video_chat_id"] = [None, None, None, None, None, None, None, None]  # not live (no chat id)
+    await rig.adapter.retarget("NOTLIVE")  # before start: only remembered
+    await rig.start()
+    await eventually(lambda: ("video_chat_id", "NOTLIVE") in rig.api.calls)
+    assert rig.state is ConnectionState.DISCONNECTED and "waiting for a live broadcast" in (rig.adapter.status().detail or "")
+    assert rig.api.count("active_broadcast") == 0  # it did not fall back to something else on its own
+
+
+async def test_retarget_does_not_start_an_adapter_the_streamer_stopped(make_rig):
+    rig = make_rig()
+    await rig.start()
+    await rig.until_state(ConnectionState.CONNECTED)
+    await rig.adapter.stop()  # the Disconnect button
+    await rig.adapter.retarget("SOMEVIDEO")
+    assert rig.state is ConnectionState.DISCONNECTED and rig.adapter.details()["video_override"] == "SOMEVIDEO"
+    assert rig.adapter._task is None  # still stopped: only the streamer's Connect starts it again
+
+
 async def test_the_same_message_is_delivered_only_once(make_rig):
     rig = make_rig()
     rig.api.script["list_messages"] = [page([chat_item("old")], "t1"), page([chat_item("dup")], "t2"),

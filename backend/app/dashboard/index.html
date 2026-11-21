@@ -11,6 +11,7 @@
     <h1>StealthBot</h1>
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button type="button" role="tab" id="tab-live" data-tab="live" aria-selected="true" aria-controls="panel-live">Live</button>
+      <button type="button" role="tab" id="tab-streams" data-tab="streams" aria-selected="false" aria-controls="panel-streams">Streams</button>
       <button type="button" role="tab" id="tab-personalities" data-tab="personalities" aria-selected="false" aria-controls="panel-personalities">Personalities</button>
       <button type="button" role="tab" id="tab-ai" data-tab="ai" aria-selected="false" aria-controls="panel-ai">AI</button>
       <button type="button" role="tab" id="tab-scheduler" data-tab="scheduler" aria-selected="false" aria-controls="panel-scheduler">Scheduler &amp; limits</button>
@@ -91,6 +92,79 @@
           <dl class="kv" id="stats"></dl>
         </article>
       </div>
+    </section>
+
+    <!-- ===================================================== STREAMS -->
+    <section class="page two" id="panel-streams" role="tabpanel" aria-labelledby="tab-streams" hidden>
+      <article class="card wide" aria-labelledby="h-streams">
+        <h2 id="h-streams">Which stream the bot comments in
+          <button id="btn-streams-check" class="quiet" type="button">Check now</button></h2>
+        <div id="streams-now"></div>
+        <div id="streams-list" class="stream-list"></div>
+        <p class="hint" id="streams-msg" role="status"></p>
+        <p class="hint">Press <b>Use this stream</b> to tell the bot where to comment. If you select nothing, or the stream you
+          selected is not live, the fail-safe (right) starts with whichever stream on this list is live. The dot shows what
+          the last check found; a grey dot means &ldquo;not checked yet or the check failed&rdquo;, not &ldquo;offline&rdquo;.</p>
+      </article>
+
+      <article class="card" aria-labelledby="h-topic">
+        <h2 id="h-topic">What the stream is about</h2>
+        <form id="topic-form">
+          <label class="field"><span>Game or show</span>
+            <input type="text" id="topic-game" maxlength="60" autocomplete="off"></label>
+          <label class="field"><span>Search words for the web lookup (optional)</span>
+            <input type="text" id="topic-hint" maxlength="80" autocomplete="off" placeholder="e.g. Bigg Boss 20 Hindi TV show"></label>
+          <button type="submit">Save and look it up on the web</button>
+        </form>
+        <p class="hint" id="topic-status"></p>
+        <label class="field"><span>What the bot knows about it (change it if it is wrong)</span>
+          <textarea id="topic-notes" rows="5" maxlength="1000"></textarea></label>
+        <button id="btn-topic-notes" type="button">Save my own notes</button>
+        <p class="hint" id="topic-msg" role="status"></p>
+        <p class="hint">A small local AI does not know every game or show and may invent details. The lookup fetches a short summary
+          from Wikipedia (only these search words leave your PC) and the bot treats it as background facts. Check the matched page
+          above: if it is the wrong one, add search words and look again, or write your own notes (those are never replaced).
+          Saved here, it wins over the setting in the .env file.</p>
+      </article>
+
+      <article class="card" aria-labelledby="h-streams-add">
+        <h2 id="h-streams-add">Add a YouTube stream</h2>
+        <form id="streams-add-form">
+          <label class="field"><span>YouTube link or id</span>
+            <input type="text" id="stream-ref" autocomplete="off" placeholder="youtu.be/... or youtube.com/channel/UC..."></label>
+          <label class="field"><span>Name (optional)</span>
+            <input type="text" id="stream-label" maxlength="60" autocomplete="off"></label>
+          <label class="field"><span>Priority (0-100, higher is preferred)</span>
+            <input type="number" id="stream-priority" min="0" max="100" step="1" value="50"></label>
+          <button type="submit">Add to the list</button>
+        </form>
+        <p class="hint" id="streams-add-msg" role="status"></p>
+        <p class="hint">A <b>video</b> link is checked cheaply every minute. A <b>channel</b> link finds that channel&rsquo;s live
+          stream through YouTube&rsquo;s search, which has a small daily allowance, so it is checked only every 15 minutes or
+          so. Channel names like @name cannot be looked up: open the channel and copy its youtube.com/channel/UC... address.
+          Only add streams you own or have the owner&rsquo;s permission to chat in.</p>
+        <p class="hint">Kick: the bot can only read chat on the channel of the account it is signed in with (Kick&rsquo;s rule for
+          this kind of sign-in), so that channel is always on the list and other Kick channels cannot be added.</p>
+      </article>
+
+      <article class="card" aria-labelledby="h-streams-fs">
+        <h2 id="h-streams-fs">Fail-safe</h2>
+        <form id="streams-settings-form">
+          <label class="switch-row">
+            <input type="checkbox" id="chk-streams-auto">
+            <span>Choose a live stream by itself <small>(on: start with the live stream on the list when nothing is selected,
+              and move there if the selected one stays offline. Off: only ever the stream you selected.)</small></span>
+          </label>
+          <label class="field"><span>Move to another live stream after the selected one was offline for (seconds)</span>
+            <input type="number" id="set-failover" min="0" max="86400" step="1"></label>
+          <label class="field"><span>Look for live streams every (seconds)</span>
+            <input type="number" id="set-poll" min="15" max="3600" step="1"></label>
+          <label class="field"><span>Look at each YouTube channel every (seconds)</span>
+            <input type="number" id="set-chprobe" min="300" max="86400" step="1"></label>
+          <button type="submit">Save</button>
+        </form>
+        <p class="hint" id="streams-settings-msg" role="status"></p>
+      </article>
     </section>
 
     <!-- ===================================================== PERSONALITIES -->

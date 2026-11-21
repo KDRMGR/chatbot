@@ -101,6 +101,15 @@ async def refresh_tokens(
     return _to_tokens(await _token_request(http, data), clock(), fallback_refresh=refresh_token)
 
 
+async def client_credentials(
+    http: httpx.AsyncClient, client: ClientConfig, clock: Callable[[], float] = time.time,
+) -> TokenSet:
+    """An APP access token (documented grant ``client_credentials``): it belongs to the app, not to any account, so it can read
+    the public chat events of a channel the app is subscribed to. Verified live 2026-11-22: HTTP 200, Bearer, about 60 days."""
+    data = {"grant_type": "client_credentials", "client_id": client.client_id, "client_secret": _require_secret(client)}
+    return _to_tokens(await _token_request(http, data), clock())
+
+
 async def revoke_token(http: httpx.AsyncClient, token: str, hint: str = "refresh_token") -> bool:
     """POST /oauth/revoke (the docs pass token and token_hint_type as query parameters). True if Kick answered 200."""
     try:

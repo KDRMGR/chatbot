@@ -303,6 +303,173 @@ async function loadLimits() {
   }));
 }
 
+/* ------------------------------------------------------------------ streams: which stream the bot comments in */
+let streamsFormFilled = false;
+const PLATFORM_NAMES = { youtube: "YouTube", kick: "Kick" };
+
+function streamDot(t) {
+  const state = !t.enabled ? "off" : t.live === true ? "live" : t.live === false ? "offline" : "unknown";
+  const words = { live: "Live", offline: "Offline", unknown: "Not checked yet, or the check failed", off: "Switched off" }[state];
+  return el("span", { class: `dot ${state}`, role: "img", "aria-label": words, title: words });
+}
+
+function streamDetail(t) {
+  const bits = [PLATFORM_NAMES[t.platform] || t.platform];
+  if (t.kind === "video") bits.push(`video ${t.ref}`);
+  else if (t.kind === "channel") bits.push(`channel ${t.ref}`);
+  else bits.push("signed-in account");
+  if (t.live && t.title) bits.push(t.title);
+  if (t.live === false && t.offline_s !== null && t.offline_s !== undefined) bits.push(`offline for ${fmtDuration(t.offline_s)}`);
+  if (t.checked_s_ago !== null && t.checked_s_ago !== undefined) bits.push(`checked ${fmtDuration(t.checked_s_ago)} ago`);
+  return bits.join(" · ");
+}
+
+function streamReply(r, okText) {
+  say("streams-msg", r.ok ? okText : `Not done: ${formatProblems(r.data && r.data.detail)}`, r.ok ? "ok" : "error");
+  if (r.ok) renderStreams(r.data, true);
+}
+
+async function streamSelect(id) {
+  streamReply(await api("/api/streams/select", { method: "POST", body: { target_id: id } }),
+    id ? "Selected. The bot moves there as soon as that stream is live." : "Nothing selected: the bot chooses a live stream by itself.");
+}
+
+async function streamEdit(id, body) {
+  streamReply(await api(`/api/streams/targets/${encodeURIComponent(id)}`, { method: "POST", body }), "Saved.");
+}
+
+async function streamRemove(id) {
+  streamReply(await api(`/api/streams/targets/${encodeURIComponent(id)}/remove`, { method: "POST" }), "Removed from the list.");
+}
+
+async function streamsCheckNow() {
+  const button = $("btn-streams-check");
+  button.disabled = true;
+  say("streams-msg", "Checking...", "");
+  try { streamReply(await api("/api/streams/check", { method: "POST" }), "Checked just now."); }
+  finally { button.disabled = false; }
+}
+
+function buildStreamRow(t) {
+  const name = el("div", { class: "stream-name" }, [document.createTextNode(t.label)]);
+  if (t.active) name.append(el("span", { class: "tag active", text: "bot is here" }));
+  if (t.selected) name.append(el("span", { class: "tag chosen", text: "selected" }));
+  const text = el("div", {}, [name, el("small", { class: "stream-detail", text: streamDetail(t) })]);
+  if (t.error && t.enabled) text.append(el("small", { class: "stream-warn", text: `Last check failed: ${t.error}` }));
+  if (t.note && t.enabled) text.append(el("small", { class: "stream-detail", text: t.note }));
+
+  const priority = numberInput(t.priority, 0, 100, 1);
+  priority.setAttribute("aria-label", `Priority of ${t.label}`);
+  priority.addEventListener("change", () => streamEdit(t.id, { priority: number(priority) }));
+  const on = el("input", { type: "checkbox", "aria-label": `Switch ${t.label} on or off` });
+  on.checked = t.enabled;
+  on.addEventListener("change", () => streamEdit(t.id, { enabled: on.checked }));
+  const choose = el("button", { type: "button", class: t.selected ? "chosen" : "", text: t.selected ? "Selected (click to unselect)" : "Use this stream" });
+  choose.disabled = !t.enabled;
+  choose.addEventListener("click", () => streamSelect(t.selected ? null : t.id));
+  const controls = el("div", { class: "stream-controls" }, [
+    el("label", {}, [document.createTextNode("Priority"), priority]),
+    el("label", {}, [on, document.createTextNode("On")]),
+    choose,
+  ]);
+  if (t.kind !== "own") {
+    const remove = el("button", { type: "button", class: "quiet", text: "Remove" });
+    remove.addEventListener("click", () => streamRemove(t.id));
+    controls.append(remove);
+  }
+  return el("div", { class: `stream-row${t.active ? " active" : ""}` }, [el("div", { class: "stream-main" }, [streamDot(t), text]), controls]);
+}
+
+function renderStreams(data, force) {
+  const list = $("streams-list");
+  const editing = list.contains(document.activeElement) && document.activeElement !== list;
+  if (force || !editing) {
+    list.replaceChildren(...data.targets.map(buildStreamRow));
+    if (!data.targets.length) list.append(el("p", { class: "hint", text: "No platform is connected yet, so there is nothing to choose. Connect YouTube or Kick first (see the setup guides)." }));
+  }
+  const labels = Object.fromEntries(data.targets.map((t) => [t.id, t.label]));
+  const lines = Object.entries(data.now).map(([platform, d]) => {
+    const where = d.target_id ? `in "${labels[d.target_id] || d.target_id}"` : "not in any stream";
+    return el("p", { class: "stream-now" }, [el("b", { text: `${PLATFORM_NAMES[platform] || platform}: ` }), document.createTextNode(`${where}, because: ${d.reason}`)]);
+  });
+  section(null, "streams-now", lines);
+  if (!streamsFormFilled || force === "settings") {
+    const s = data.settings;
+    $("chk-streams-auto").checked = s.auto_select;
+    $("set-failover").value = String(s.failover_after_s);
+    $("set-poll").value = String(s.poll_interval_s);
+    $("set-chprobe").value = String(s.youtube_channel_probe_s);
+    streamsFormFilled = true;
+  }
+}
+
+async function loadStreams(force) {
+  const r = await api("/api/streams");
+  if (r.ok) renderStreams(r.data, force);
+}
+
+async function addStream(event) {
+  event.preventDefault();
+  const r = await api("/api/streams/targets", { method: "POST", body: {
+    platform: "youtube", ref: $("stream-ref").value, label: $("stream-label").value, priority: number($("stream-priority")),
+  } });
+  if (r.ok) {
+    $("stream-ref").value = "";
+    $("stream-label").value = "";
+    say("streams-add-msg", "Added. It is checked within a few seconds.", "ok");
+    renderStreams(r.data, true);
+  } else say("streams-add-msg", `Not added: ${formatProblems(r.data && r.data.detail)}`, "error");
+}
+
+async function saveStreamSettings(event) {
+  event.preventDefault();
+  const r = await api("/api/streams/settings", { method: "POST", body: {
+    auto_select: $("chk-streams-auto").checked, failover_after_s: number($("set-failover")), poll_interval_s: number($("set-poll")),
+    youtube_channel_probe_s: number($("set-chprobe")),
+  } });
+  if (r.ok) { say("streams-settings-msg", "Saved. It applies at once.", "ok"); renderStreams(r.data, "settings"); }
+  else say("streams-settings-msg", `Not saved: ${formatProblems(r.data && r.data.detail)}`, "error");
+}
+
+/* ------------------------------------------------------------------ the stream's topic: game + background note */
+function renderTopic(t, force) {
+  const editing = [$("topic-game"), $("topic-hint"), $("topic-notes")].includes(document.activeElement);
+  if (force || !editing) {
+    $("topic-game").value = t.game || "";
+    $("topic-hint").value = t.hint || "";
+    $("topic-notes").value = t.notes || "";
+    $("topic-notes").maxLength = t.max_notes_chars || 450;
+  }
+  let text;
+  if (t.error) text = `Lookup problem: ${t.error}`;
+  else if (!t.notes) text = t.lookup_enabled ? "The bot has no background note yet, so it will keep its replies general." : "Web lookups are switched off, and there is no note yet.";
+  else if (t.source === "manual") text = "The bot uses your own notes.";
+  else text = `Matched Wikipedia page: ${t.title}. Is that the right one?`;
+  if (t.notes && !t.matches_game) text += " (This note is about a different game.)";
+  say("topic-status", text, t.error ? "error" : "");
+}
+
+async function loadTopic(force) {
+  const r = await api("/api/topic");
+  if (r.ok) renderTopic(r.data, force);
+}
+
+async function saveTopic(event) {
+  event.preventDefault();
+  say("topic-msg", "Looking it up...", "");
+  const r = await api("/api/topic", { method: "POST", body: { game: $("topic-game").value, hint: $("topic-hint").value, lookup: true } });
+  if (r.ok) {
+    renderTopic(r.data, true);
+    say("topic-msg", r.data.error ? "The game was saved, but the lookup did not work (see above)." : "Saved. Replies use it from now on.", r.data.error ? "error" : "ok");
+  } else say("topic-msg", `Not saved: ${formatProblems(r.data && r.data.detail)}`, "error");
+}
+
+async function saveTopicNotes() {
+  const r = await api("/api/topic", { method: "POST", body: { notes: $("topic-notes").value } });
+  if (r.ok) { renderTopic(r.data, true); say("topic-msg", r.data.notes ? "Saved your notes. They are never replaced by a lookup." : "Notes cleared.", "ok"); }
+  else say("topic-msg", `Not saved: ${formatProblems(r.data && r.data.detail)}`, "error");
+}
+
 /* ------------------------------------------------------------------ history and logs */
 function fmtDateTime(iso) {
   const d = new Date(iso);
@@ -362,7 +529,8 @@ function setLogTimer() {
 /* ------------------------------------------------------------------ wiring */
 function onTabShown(name) {
   currentTab = name;
-  if (name === "personalities") loadPersonalities();
+  if (name === "streams") { loadStreams(true); loadTopic(true); }
+  else if (name === "personalities") loadPersonalities();
   else if (name === "ai") loadAiSettings();
   else if (name === "scheduler") loadLimits();
   else if (name === "history") { loadSessions(); loadConnLogs(); loadLogs(); }
@@ -371,6 +539,12 @@ function onTabShown(name) {
 function initPanels() {
   $("btn-stop").addEventListener("click", () => stopBot(false));
   $("btn-restart").addEventListener("click", () => stopBot(true));
+  $("btn-streams-check").addEventListener("click", streamsCheckNow);
+  $("topic-form").addEventListener("submit", saveTopic);
+  $("btn-topic-notes").addEventListener("click", saveTopicNotes);
+  $("streams-add-form").addEventListener("submit", addStream);
+  $("streams-settings-form").addEventListener("submit", saveStreamSettings);
+  setInterval(() => { if (currentTab === "streams" && !document.hidden) loadStreams(false); }, 5000);
   $("ai-form").addEventListener("submit", saveAiSettings);
   $("btn-ai-test").addEventListener("click", testAi);
   $("btn-sessions").addEventListener("click", loadSessions);

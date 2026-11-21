@@ -13,6 +13,7 @@ from .lexicon import URL_RE, Lexicon
 from .normalizer import compare_key, word_count
 
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.S | re.I)
+_MD_EMPHASIS = re.compile(r"(?<![\w*])[*_]{1,2}(?=\S)([^*_\n]{1,80}?)(?<=\S)[*_]{1,2}(?![\w*])")  # *word* / _word_ emphasis, not snake_case or 2*3
 _LABEL = re.compile(r"^\s*(?:stealthbot|bot|assistant|reply|message|chat message)\s*[:\-–]\s*", re.I)
 _MENTION = re.compile(r"(?<!\w)@\S+")
 _EMOJI = re.compile("[\U0001F300-\U0001FAFF☀-➿]")
@@ -115,7 +116,8 @@ def clean_reply(
     text = _THINK_BLOCK.sub("", text)
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     text = " ".join(lines)
-    text = _LABEL.sub("", text).replace("**", "").replace("__", "").strip()
+    text = _LABEL.sub("", text).replace("**", "").replace("__", "")
+    text = _MD_EMPHASIS.sub(r"\1", text).strip()  # *so* -> so: chat shows markdown as literal asterisks
     if len(text) >= 2 and text[0] in _QUOTES and text[-1] in _QUOTES:
         text = text[1:-1].strip()
     text = re.sub(r"\s{2,}", " ", _MENTION.sub("", text)).strip()

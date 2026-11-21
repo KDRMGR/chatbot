@@ -131,12 +131,17 @@ class KickApi:
         except httpx.HTTPError as exc:
             raise NetworkError(None, exc.__class__.__name__) from exc
 
-    async def _request(self, method: str, path: str, *, params: Any = None, json: Any = None, auth: bool = True) -> httpx.Response:
-        token = await self._auth.access_token() if auth else None
+    async def _request(self, method: str, path: str, *, params: Any = None, json: Any = None, auth: bool = True,
+                       app: bool = False) -> httpx.Response:
+        """``app=True`` uses the APP token (not the signed-in account's token): for reading another channel's chat events."""
+        try:
+            token = (await self._auth.app_access_token() if app else await self._auth.access_token()) if auth else None
+        except KickOAuthError as exc:
+            raise AuthError(401, f"could not get a token ({exc.error})") from exc
         resp = await self._send(method, path, token=token, params=params, json=json)
         if resp.status_code == 401 and auth:  # the token we thought valid was rejected: refresh once and retry
             try:
-                token = await self._auth.force_refresh()
+                token = await (self._auth.app_access_token(renew=True) if app else self._auth.force_refresh())
             except KickOAuthError as exc:
                 raise AuthError(401, f"refresh failed ({exc.error})") from exc
             resp = await self._send(method, path, token=token, params=params, json=json)
@@ -170,24 +175,58 @@ class KickApi:
         return {"broadcaster_user_id": ch.get("broadcaster_user_id"), "slug": str(ch.get("slug") or ""),
                 "is_live": bool(stream.get("is_live"))}
 
+    @staticmethod
+    def _channel_row(ch: dict[str, Any]) -> dict[str, Any]:
+        stream = ch.get("stream") if isinstance(ch.get("stream"), dict) else {}
+        return {"broadcaster_user_id": ch.get("broadcaster_user_id"), "slug": str(ch.get("slug") or ""),
+                "is_live": bool(stream.get("is_live")), "title": str(ch.get("stream_title") or "")[:120],
+                "viewers": stream.get("viewer_count") if isinstance(stream.get("viewer_count"), int) else None}
+
+    async def channels_by_slug(self, slugs: list[str], *, app: bool = False) -> dict[str, dict[str, Any]]:
+        """Other (or our own) channels by name in ONE call: ``GET /channels?slug=a&slug=b`` (swagger: up to 50 slugs of at most
+        25 characters, not mixable with ids). Returns {lowercase slug: {broadcaster_user_id, slug, is_live, title, viewers}};
+        a name Kick does not know is simply absent."""
+        wanted = [s.lower() for s in slugs if s]
+        if not wanted:
+            return {}
+        if len(wanted) > 50 or any(len(s) > 25 for s in wanted):
+            raise ValueError("at most 50 channel names of at most 25 characters")
+        data = self._data(await self._request("GET", "/public/v1/channels", params=[("slug", s) for s in wanted], app=app))
+        out: dict[str, dict[str, Any]] = {}
+        for ch in data if isinstance(data, list) else []:
+            if isinstance(ch, dict) and ch.get("slug") and ch.get("broadcaster_user_id") is not None:
+                out[str(ch["slug"]).lower()] = self._channel_row(ch)
+        return out
+
+    async def channel_by_slug(self, slug: str, *, app: bool = False) -> dict[str, Any] | None:
+        return (await self.channels_by_slug([slug], app=app)).get(slug.lower())
+
     async def public_key(self) -> str:
         resp = await self._request("GET", "/public/v1/public-key", auth=False)
         return parse_public_key_body(resp.text, resp.headers.get("content-type", ""))
 
     # ------------------------------------------------------------------ events
-    async def list_subscriptions(self) -> list[dict[str, Any]]:
-        data = self._data(await self._request("GET", "/public/v1/events/subscriptions"))
+    async def list_subscriptions(self, *, app: bool = False) -> list[dict[str, Any]]:
+        """The subscriptions of the signed-in account's channel, or (``app=True``) every subscription of the APP, each with its
+        ``broadcaster_user_id`` (verified live 2026-11-22)."""
+        data = self._data(await self._request("GET", "/public/v1/events/subscriptions", app=app))
         return [d for d in data if isinstance(d, dict)] if isinstance(data, list) else []
 
-    async def subscribe(self, events: list[tuple[str, int]]) -> list[dict[str, Any]]:
-        """Subscribe by webhook. Returns one result per event ({name, version, subscription_id, error})."""
-        body = {"events": [{"name": n, "version": v} for n, v in events], "method": "webhook"}
-        data = self._data(await self._request("POST", "/public/v1/events/subscriptions", json=body))
+    async def subscribe(self, events: list[tuple[str, int]], *, broadcaster_user_id: int | None = None,
+                        app: bool = False) -> list[dict[str, Any]]:
+        """Subscribe by webhook. Returns one result per event ({name, version, subscription_id, error}). With a user token the
+        channel is the signed-in account's own (Kick ignores ``broadcaster_user_id``); with the app token it must be named."""
+        if app and broadcaster_user_id is None:
+            raise ValueError("a subscription made with the app token needs the broadcaster's user id")
+        body: dict[str, Any] = {"events": [{"name": n, "version": v} for n, v in events], "method": "webhook"}
+        if app:
+            body["broadcaster_user_id"] = int(broadcaster_user_id)  # type: ignore[arg-type]
+        data = self._data(await self._request("POST", "/public/v1/events/subscriptions", json=body, app=app))
         return [d for d in data if isinstance(d, dict)] if isinstance(data, list) else []
 
-    async def unsubscribe(self, ids: list[str]) -> None:
+    async def unsubscribe(self, ids: list[str], *, app: bool = False) -> None:
         if ids:
-            await self._request("DELETE", "/public/v1/events/subscriptions", params=[("id", i) for i in ids])
+            await self._request("DELETE", "/public/v1/events/subscriptions", params=[("id", i) for i in ids], app=app)
 
     # ------------------------------------------------------------------ chat
     async def send_chat(self, content: str, *, kind: str = "bot", broadcaster_user_id: int | None = None,

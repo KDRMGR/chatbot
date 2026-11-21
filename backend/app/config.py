@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field, fields
 from functools import lru_cache
 from ipaddress import ip_address
@@ -69,6 +70,15 @@ class Settings:
     bot_display_name: str = "StealthBot"
     streamer_name: str = "StealthModeGG"
     current_game: str = "GTA 6"
+    # --- background knowledge about the game / show (Wikipedia; only the game name is sent, no key, no AI cost) ---
+    topic_lookup_enabled: bool = True
+    topic_search_hint: str = ""  # extra search words, e.g. "Hindi TV show" (the lookup uses these INSTEAD of the game name when set)
+    topic_wiki_lang: str = "en"
+    topic_contact: str = ""  # Wikipedia's robot policy wants automated programs to name a contact (a website or an email) in the
+    #                          User-Agent; sent ONLY to Wikipedia. Empty = a generic agent, which Wikipedia may refuse (HTTP 403).
+    topic_lookup_timeout_s: float = 8.0
+    topic_refresh_days: float = 7.0  # a looked-up note older than this is refreshed at start-up (your own notes never are)
+    topic_notes_max_chars: int = 450
 
     # --- server (loopback only) ---
     host: str = "127.0.0.1"
@@ -102,6 +112,7 @@ class Settings:
     health_interval_s: float = 30.0
     stats_flush_interval_s: float = 300.0  # how often session statistics are saved while running (not just at a clean stop)
     gc_interval_s: float = 60.0  # full garbage collection this often (keeps memory flat over hours); 0 turns it off
+    streams_first_check_delay_s: float = 15.0  # the stream director waits this long after start so the adapters can connect first
 
     # --- reply shaping ---
     reply_target_min_words: int = 10  # what the prompt asks the model for (spec: 10-35 words)
@@ -154,6 +165,10 @@ class Settings:
     kick_webhook_public_url: str | None = None  # the public URL you typed into Kick's settings; shown in the dashboard only
     kick_message_type: str = "bot"  # "bot" = posts under the app's bot identity (documented); "user" = posts as the signed-in account
     kick_reply_threads: bool = False  # answer as a threaded reply (reply_to_message_id); off until seen working live
+    # The channel to chat in, when it is NOT the signed-in account's own (the bot account chats in another channel, e.g. "stealhmodegg").
+    # Chat is read through the app token (subscription for that channel) and answers are posted as the signed-in account (a normal
+    # user message to that channel). Empty = the signed-in account's own channel, as before. Only use channels you own or may chat in.
+    kick_target_channel: str = ""
     kick_events: list[str] = field(default_factory=lambda: ["chat.message.sent"])  # more: see KICK_SUPPORTED_EVENTS
     kick_bot_user_id: str | None = None  # if known: messages from this user id are our own and ignored
     kick_webhook_tolerance_s: float = 600.0  # deliveries older/newer than this are refused (replay protection)
@@ -216,6 +231,9 @@ class Settings:
             raise ValueError("YouTube poll intervals, planned hours and quota must be positive")
         if self.kick_message_type not in ("bot", "user"):
             raise ValueError("kick_message_type must be 'bot' or 'user'")
+        self.kick_target_channel = self.kick_target_channel.strip().lower()
+        if self.kick_target_channel and not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,24}", self.kick_target_channel):
+            raise ValueError("kick_target_channel must be a Kick channel name (letters, digits, - and _; at most 25 characters)")
         unknown = [e for e in self.kick_events if e not in KICK_SUPPORTED_EVENTS]
         if unknown or not self.kick_events:
             raise ValueError(f"kick_events must be a non-empty subset of {sorted(KICK_SUPPORTED_EVENTS)} (got {unknown or 'none'})")
@@ -228,6 +246,12 @@ class Settings:
             raise ValueError("kick_webhook_tolerance_s and kick_resubscribe_interval_s must be positive")
         if self.stats_flush_interval_s <= 0 or self.max_queue_age_s <= 0:
             raise ValueError("stats_flush_interval_s and max_queue_age_s must be positive")
+        if not re.fullmatch(r"[a-z]{2,3}", self.topic_wiki_lang):
+            raise ValueError("topic_wiki_lang must be a Wikipedia language code such as 'en' or 'hi'")
+        if self.topic_contact and not re.fullmatch(r"https://[^\s;()]{4,100}|[^@\s;()]{1,64}@[^@\s;()]{3,64}", self.topic_contact):
+            raise ValueError("topic_contact must be an https:// address or an email address (no spaces)")
+        if self.topic_lookup_timeout_s <= 0 or self.topic_refresh_days <= 0 or not 100 <= self.topic_notes_max_chars <= 1000:
+            raise ValueError("topic_lookup_timeout_s and topic_refresh_days must be positive and topic_notes_max_chars 100-1000")
         if self.approval_timeout_s <= 0 or self.approval_queue_max < 1:
             raise ValueError("approval_timeout_s must be positive and approval_queue_max at least 1")
         if min(self.proactive_tick_s, self.proactive_retry_s) <= 0:
