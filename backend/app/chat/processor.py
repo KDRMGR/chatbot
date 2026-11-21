@@ -242,7 +242,9 @@ class ChatProcessor:
     def _gate(self, msg: ChatMessage) -> str | None:
         platform = msg.platform.value
         lim = self._s.limits_for(platform)
-        if msg.event_type is EventType.MESSAGE and lim.user_cooldown_s > 0:
+        # The same-viewer cooldown protects chat from one noisy viewer. The streamer is in a conversation with the bot, so it does
+        # not apply to them; the platform-wide limits below still do.
+        if msg.event_type is EventType.MESSAGE and lim.user_cooldown_s > 0 and not msg.is_streamer:
             last = self._last_user_reply.get((platform, msg.viewer_id))
             if last is not None and self._clock() - last < lim.user_cooldown_s:
                 return "user_cooldown"
@@ -264,7 +266,7 @@ class ChatProcessor:
             try:
                 gen = await self._generator.generate(
                     profile, cls.category, platform=msg.platform.value, username=msg.username,
-                    message=msg.message, is_new_viewer=is_new, is_streamer=msg.is_streamer,
+                    message=msg.message, is_new_viewer=is_new, is_streamer=msg.is_streamer, is_voice=msg.via_voice,
                 )
                 return _Reply(gen.text, profile.name, "ai", gen.model, gen.latency_ms)
             except GenerationFailed as exc:

@@ -165,7 +165,9 @@ class RelayService:
         if self.say_handler is None:
             return "failed", {"ok": False, "error": "voice replies are not switched on yet"}
         result = await self.say_handler(text.strip(), {"role": role, "user": creator, "lang": str(payload.get("lang") or "")[:10]})
-        return "done", {"ok": True, **result}
+        if result.get("ok", True):
+            return "done", {"ok": True, **result}
+        return "failed", {**result, "ok": False}
 
     # ------------------------------------------------------------------ status
     async def build_status(self) -> dict[str, Any]:

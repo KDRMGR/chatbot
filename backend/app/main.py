@@ -48,6 +48,7 @@ from .scheduler.engagement import EngagementScheduler
 from .streams.director import StreamDirector
 from .knowledge.topic import TopicBriefing
 from .relay.service import RelayService
+from .relay.voice import make_voice_handler
 from .relay.supabase import SupabaseClient
 from .security.credential_store import CredentialStore
 from .services.controls import RuntimeControls
@@ -229,6 +230,8 @@ def create_app(
             relay = RelayService(app, cfg, SupabaseClient(cfg.supabase_url, cfg.supabase_publishable_key,
                                                           CredentialStore(cfg.data_dir), transport=relay_transport))
             app.state.container.relay = relay
+            if cfg.relay_voice_enabled:
+                relay.say_handler = make_voice_handler(app.state.container)
 
         async def ingest(message):  # noqa: ANN001, ANN202 - what platform adapters call for every incoming message
             await processor.submit(message, wait=False)

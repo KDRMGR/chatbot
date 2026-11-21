@@ -93,6 +93,7 @@ class Settings:
     relay_status_s: float = 3.0  # how often it publishes its status
     relay_feed_items: int = 15  # recent chat lines included in the status
     relay_command_max_age_s: float = 300.0  # a command older than this is rejected (a stale "resume" must not run after downtime)
+    relay_voice_enabled: bool = True  # hold-to-speak: what the streamer says becomes a message from them that the bot answers in chat
     # --- background knowledge about the game / show (Wikipedia; only the game name is sent, no key, no AI cost) ---
     topic_lookup_enabled: bool = True
     topic_search_hint: str = ""  # extra search words, e.g. "Hindi TV show" (the lookup uses these INSTEAD of the game name when set)

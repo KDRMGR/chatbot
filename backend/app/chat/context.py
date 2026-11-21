@@ -35,7 +35,7 @@ class SessionContext:
         self._events.append(text[:120])
 
     def add_chat(self, name: str, text: str, *, is_bot: bool = False) -> None:
-        self._chat.append((name[:20], text[:80], is_bot))
+        self._chat.append((name[:32], text[:80], is_bot))  # long enough for "StealthModeGG (voice)"
 
     def duration_str(self) -> str:
         secs = max(0, int((self._clock() - self.started_at).total_seconds()))

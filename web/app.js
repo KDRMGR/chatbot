@@ -162,7 +162,7 @@ async function send(kind, payload) {
       const row = s.ok && Array.isArray(s.data) ? s.data[0] : null;
       if (row && row.status !== "pending" && row.status !== "running") {
         const err = row.result && row.result.error ? String(row.result.error).slice(0, 200) : "";
-        entry = { time: new Date(), kind, ok: row.status === "done", text: row.status === "done" ? "Done." : (err || row.status) };
+        entry = { time: new Date(), kind, ok: row.status === "done", text: row.status === "done" ? "Done." : (err || row.status), result: row.result };
         break;
       }
     }
@@ -305,7 +305,7 @@ function renderTalk(st, online) {
   if (!sayEnabled()) note = "Voice replies are not switched on yet: the bot would refuse them. You can already test the microphone, but Send is off.";
   else if (!online) note = "The bot is offline.";
   else if (!SR) note = "This browser has no speech recognition: type the message instead (Chrome or Edge work).";
-  else note = "Hold the button while you speak, let go when you are done, check the text, then Send. The browser sends your audio to its vendor's speech service.";
+  else note = "Hold the button while you speak and let go when you are done. The bot answers in chat as if replying to what you said (your words are not posted). The browser sends your audio to its vendor's speech service.";
   $("talk-note").textContent = note;
   if (!sayEnabled() && SR) $("btn-hold").disabled = false; // allow a microphone test
 }
@@ -333,12 +333,29 @@ function startHold() {
 }
 function endHold() { if (holding && rec) { try { rec.stop(); } catch (_) { /* already stopped */ } } }
 
+/* What happened to something the streamer said: the bot answers it in chat as part of the conversation. */
+function describeSay(result, fallback) {
+  const r = result || {};
+  const reply = r.reply ? `"${String(r.reply).slice(0, 160)}"` : "";
+  switch (r.action) {
+    case "replied": return `The bot answered in chat: ${reply}`;
+    case "held": return `The bot wrote an answer and it is waiting for approval: ${reply}`;
+    case "paused": return "Replies are paused, so the bot did not answer.";
+    case "rate_limited": return "The bot is pacing itself right now. Try again in a moment.";
+    case "ignored": return "The bot chose not to answer that one.";
+    case "no_stream": return "No stream is connected, so the bot has nowhere to answer.";
+    case "timeout": return "The bot took too long to answer.";
+    case "no_reply": return "The bot had no answer for that.";
+    default: return fallback;
+  }
+}
+
 async function sendSay() {
   const text = $("talk-text").value.trim();
   if (!text) return;
   say("talk-msg", "Sending...", "");
   const entry = await send("say", { text, lang: $("talk-lang").value });
-  say("talk-msg", entry.ok ? "Sent." : entry.text, entry.ok ? "ok" : "error");
+  say("talk-msg", entry.ok ? describeSay(entry.result, "Sent.") : describeSay(entry.result, entry.text), entry.ok ? "ok" : "error");
   if (entry.ok) $("talk-text").value = "";
   renderTalk(null, true);
 }

@@ -57,10 +57,15 @@ class PromptManager:
     def build(
         self, *, profile: PersonalityProfile, category: Category, username: str | None, message: str | None,
         context_text: str, game: str, avoid: list[str], is_new_viewer: bool = False, retry_hint: str | None = None,
-        is_streamer: bool = False,
+        is_streamer: bool = False, is_voice: bool = False,
     ) -> list[dict[str, str]]:
         parts = [f"Stream context:\n{context_text}", "", TASK_HINTS.get(category, TASK_HINTS[Category.GENERAL])]
-        if is_streamer:
+        if is_streamer and is_voice:
+            parts.append(f"The streamer, {self._s.streamer_name}, just said the text below OUT LOUD on the live stream (speech "
+                         "recognition wrote it down, so it may contain small mistakes). Answer in the chat to what they said, as "
+                         "part of an ongoing conversation with the viewers. Do not repeat their words back and do not welcome "
+                         "them; speak to them and the chat naturally.")
+        elif is_streamer:
             parts.append(f"This message is from the streamer, {self._s.streamer_name}, in their own chat: answer them directly "
                          "and warmly. Never welcome them to their own stream or treat them as a new viewer.")
         elif is_new_viewer:
