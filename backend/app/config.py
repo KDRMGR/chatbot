@@ -69,6 +69,8 @@ def _default_rate_limits() -> dict[str, RateLimitConfig]:
 
 # Webhook events the Kick connector understands (names from Kick's docs, events/event-types.md). Chat is the default; the others
 # make the bot thank new subscribers and KICKs gifts the same way it thanks YouTube memberships and Super Chats.
+REPLY_LANGUAGES = ("english", "hinglish", "hindi", "auto")
+
 KICK_SUPPORTED_EVENTS = (
     "chat.message.sent", "channel.subscription.new", "channel.subscription.renewal", "channel.subscription.gifts", "kicks.gifted",
 )
@@ -103,6 +105,14 @@ class Settings:
     topic_lookup_timeout_s: float = 8.0
     topic_refresh_days: float = 7.0  # a looked-up note older than this is refreshed at start-up (your own notes never are)
     topic_notes_max_chars: int = 450
+    # Where the background comes from (comma separated): wikipedia (what it is), gdelt and googlenews (recent headlines). Wikipedia only
+    # by default; Google News is an RSS feed without a published contract, so it is only used when you switch it on.
+    topic_sources: list[str] = field(default_factory=lambda: ["wikipedia"])
+    topic_news_refresh_min: float = 30.0  # the headlines are looked up again this often while the bot is in a stream
+    topic_news_max_items: int = 4
+    topic_news_max_chars: int = 360  # all the headlines together
+    topic_news_lang: str = "en"  # Google News edition: language-REGION, e.g. en-IN
+    topic_news_region: str = "IN"
 
     # --- server (loopback only) ---
     host: str = "127.0.0.1"
@@ -139,7 +149,11 @@ class Settings:
     streams_first_check_delay_s: float = 15.0  # the stream director waits this long after start so the adapters can connect first
 
     # --- reply shaping ---
-    reply_language: str = "english"  # "english" or "hinglish" (Hindi in the English alphabet mixed with English, as Indian chats talk)
+    # english | hinglish (Hindi in the English alphabet mixed with English, as Indian chats talk) | hindi (Devanagari) | auto (answer in
+    # the language each viewer wrote in). Also switchable in the panel; the panel's choice is saved and wins over this value.
+    reply_language: str = "english"
+    conversation_sticky_s: float = 120.0  # a viewer who is talking with the bot keeps getting answers from the same personality
+    conversation_personality: str = "ChatBuddy"  # the one that talks with the streamer (their voice and typed messages)
     reply_target_min_words: int = 10  # what the prompt asks the model for (spec: 10-35 words)
     reply_min_words: int = 3  # the guard only rejects replies shorter than this
     reply_max_words: int = 35
@@ -255,8 +269,17 @@ class Settings:
                self.youtube_discovery_interval_s, self.youtube_planned_stream_hours) <= 0 or self.youtube_daily_quota < 1:
             raise ValueError("YouTube poll intervals, planned hours and quota must be positive")
         self.reply_language = self.reply_language.strip().lower()
-        if self.reply_language not in ("english", "hinglish"):
-            raise ValueError("reply_language must be 'english' or 'hinglish'")
+        if self.reply_language not in REPLY_LANGUAGES:
+            raise ValueError(f"reply_language must be one of {', '.join(REPLY_LANGUAGES)}")
+        self.topic_sources = [s.strip().lower() for s in self.topic_sources if s.strip()]
+        if not set(self.topic_sources) <= {"wikipedia", "gdelt", "googlenews"}:
+            raise ValueError("topic_sources can only contain wikipedia, gdelt and googlenews")
+        if not re.fullmatch(r"[a-z]{2,3}", self.topic_news_lang) or not re.fullmatch(r"[A-Z]{2}", self.topic_news_region):
+            raise ValueError("topic_news_lang must be like 'en' and topic_news_region like 'IN'")
+        if self.topic_news_refresh_min < 5 or not 1 <= self.topic_news_max_items <= 8 or not 80 <= self.topic_news_max_chars <= 800:
+            raise ValueError("topic_news_refresh_min must be at least 5, topic_news_max_items 1-8 and topic_news_max_chars 80-800")
+        if self.conversation_sticky_s < 0:
+            raise ValueError("conversation_sticky_s cannot be negative")
         if self.kick_message_type not in ("bot", "user"):
             raise ValueError("kick_message_type must be 'bot' or 'user'")
         self.kick_target_channel = self.kick_target_channel.strip().lower()

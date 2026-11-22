@@ -103,10 +103,19 @@ class KickAdapter(PlatformAdapter):
     def status(self) -> ConnectionStatus:
         return self._status
 
+    def default_slug(self) -> str | None:
+        """The channel the bot starts in: ``kick_target_channel`` if set, otherwise the signed-in account's own channel
+        (None until the account has been identified)."""
+        return (self._s.kick_target_channel or "").strip().lower() or (str(self._channel.get("slug") or "").lower() or None)
+
+    async def live_status(self, slugs: list[str]) -> dict[str, dict[str, Any]]:
+        """Is each of these channels live? One call for all of them (``GET /channels?slug=...``). Raises the API's errors."""
+        return await self._api.channels_by_slug(slugs)
+
     async def retarget(self, slug: str | None) -> None:
-        """Chat in another channel (``None`` = the signed-in account's own). Reconnects if the adapter is running; if it was
-        stopped (for example from the dashboard) it stays stopped."""
-        slug = (slug or "").strip().lower() or None
+        """Chat in another channel (``None`` = back to the default one, see ``default_slug``). Reconnects if the adapter is
+        running; if it was stopped (for example from the dashboard) it stays stopped."""
+        slug = (slug or "").strip().lower() or (self._s.kick_target_channel or "").strip().lower() or None
         if slug == self._target_slug:
             return
         self._target_slug = slug
@@ -123,6 +132,7 @@ class KickAdapter(PlatformAdapter):
         return {
             "channel": answer.get("slug") or None, "account": (self._me or {}).get("name") or None,
             "own_channel": self._channel.get("slug") or None, "target_channel": self._target_slug,
+            "default_channel": self.default_slug(),
             "answering_in_own_channel": bool(self._answer is None or self._answer.get("own")),
             "is_live": answer.get("is_live"), "message_type": self._s.kick_message_type,
             "webhook_port": self._server.port if self._server else None, "webhook_public_url": self._s.kick_webhook_public_url,

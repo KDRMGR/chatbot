@@ -116,6 +116,7 @@ class ChatProcessor:
         self.incoming: BoundedPriorityQueue[_Item] = BoundedPriorityQueue(settings.incoming_queue_max)
         self._limiters: dict[str, RateLimiter] = {}
         self._last_user_reply: dict[tuple[str, str], float] = {}
+        self._last_voice: dict[tuple[str, str], tuple[str, float]] = {}  # who the bot last answered as, per viewer (conversations)
         self._task: asyncio.Task[None] | None = None
         self.activity: ActivityListener | None = None  # the proactive scheduler, set by the application
         self.approvals = ApprovalQueue(settings.approval_queue_max, settings.approval_timeout_s, clock)
@@ -259,7 +260,7 @@ class ChatProcessor:
         if cls.category is Category.EVENT:
             return _Reply(self._rules.event_reply(msg), None, "rule")
 
-        profile = self._personalities.select(cls.category)
+        profile = self._personalities.select(cls.category, prefer=self._conversation_voice(msg))
         if profile is None:
             return None
         if self._controls.ai_enabled and self._s.ai_enabled:
@@ -274,6 +275,16 @@ class ChatProcessor:
         self._metrics.inc("rule_fallbacks")
         text = self._rules.fallback_reply(cls.category, msg.username, self._recent.all())
         return _Reply(text, profile.name, "rule")
+
+    def _conversation_voice(self, msg: ChatMessage) -> str | None:
+        """Which personality should keep this conversation going. The streamer always talks with the conversational one; a viewer
+        the bot answered a moment ago keeps getting the same voice (so a chat with the bot does not flip between characters)."""
+        if msg.is_streamer:
+            return self._s.conversation_personality
+        last = self._last_voice.get((msg.platform.value, msg.viewer_id))
+        if last is not None and self._clock() - last[1] < self._s.conversation_sticky_s:
+            return last[0]
+        return None
 
     async def _deliver(self, msg: ChatMessage, stored_id: int, reply: _Reply, base: dict[str, Any]) -> ProcessResult:
         return await self._send_reply(msg.platform, msg, stored_id, reply, base, msg.viewer_id)
@@ -324,9 +335,12 @@ class ChatProcessor:
         self._limiter(platform).record()
         if viewer_id is not None:
             self._last_user_reply[(platform, viewer_id)] = self._clock()
+            if reply.personality:
+                self._last_voice[(platform, viewer_id)] = (reply.personality, self._clock())
         if len(self._last_user_reply) > 5000:  # bounded memory over long sessions
             cutoff = self._clock() - 3600
             self._last_user_reply = {k: v for k, v in self._last_user_reply.items() if v >= cutoff}
+            self._last_voice = {k: v for k, v in self._last_voice.items() if v[1] >= cutoff}
         self._recent.add(platform, text)
         self._ctx.add_chat(self._s.bot_display_name, text, is_bot=True)
         if reply.personality:

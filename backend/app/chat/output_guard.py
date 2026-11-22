@@ -5,6 +5,7 @@ The AI only ever generates text. This module decides whether that text may be se
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections import deque
 from dataclasses import dataclass
 from difflib import SequenceMatcher
@@ -98,6 +99,23 @@ def fit_to_limit(text: str, limit: int) -> str:
     return cut.rstrip(",;:- ") + "…"
 
 
+def foreign_script(text: str, *, allow_devanagari: bool) -> bool:
+    """True if the text contains letters of a script the bot's safety word lists do not understand. Those lists cover English, Hinglish
+    and Devanagari Hindi, so a reply in Bengali, Arabic, Chinese or Cyrillic could not be checked for abuse: it is not sent. (Small
+    models drift into a neighbouring script now and then; one reply came out half Bengali during testing.) Latin letters with accents
+    are fine, and so are digits, emoji and punctuation. Devanagari counts as foreign unless the language setting allows it."""
+    for ch in text:
+        if ch.isascii() or not unicodedata.category(ch).startswith(("L", "M")):
+            continue
+        name = unicodedata.name(ch, "")
+        if name.startswith("LATIN"):
+            continue
+        if name.startswith("DEVANAGARI") and allow_devanagari:
+            continue
+        return True
+    return False
+
+
 def clean_reply(
     raw: str,
     *,
@@ -108,6 +126,7 @@ def clean_reply(
     max_chars: int = 200,
     similarity_threshold: float = 0.85,
     max_emoji: int = 2,
+    allow_devanagari: bool = True,
 ) -> GuardResult:
     text = raw or ""
     low = text.lower()
@@ -125,6 +144,8 @@ def clean_reply(
         return GuardResult(None, "empty")
     if URL_RE.search(text):
         return GuardResult(None, "link")
+    if foreign_script(text, allow_devanagari=allow_devanagari):
+        return GuardResult(None, "script")
     if text[0] in "!/":
         return GuardResult(None, "command_like")
     low = text.lower()

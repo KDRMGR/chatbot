@@ -461,34 +461,74 @@ async def topic_status(request: Request) -> JSONResponse:
 async def topic_change(request: Request) -> JSONResponse:
     """Set the game/topic and optional search words, look it up on the web, or save the streamer's own notes.
 
-    ``{"game": "...", "hint": "...", "lookup": true}`` or ``{"notes": "..."}`` (own notes; empty text clears the note).
+    ``{"game": "...", "hint": "...", "lookup": true}`` or ``{"notes": "..."}`` (own notes; empty text clears the note), or
+    ``{"news": true}`` (only look the headlines up again). Every stream has its own topic: without ``target_id`` the change is for
+    the stream the bot is in; with a ``target_id`` it is for that stream (saved now, looked up when the bot moves there).
     A failed web lookup is not an HTTP error: the game is still changed and the problem is reported in ``error``."""
-    topic = _c(request).topic
+    c = _c(request)
+    topic = c.topic
     body = await _json_body(request)
     if not isinstance(body, dict):
         raise ValidationFailed([{"loc": ["body"], "msg": "must be an object"}])
-    errors = [{"loc": [k], "msg": "unknown setting"} for k in body if k not in ("game", "hint", "notes", "lookup")]
+    errors = [{"loc": [k], "msg": "unknown setting"} for k in body if k not in ("game", "hint", "notes", "lookup", "news", "target_id")]
     for key in ("game", "hint", "notes"):
         if key in body and not isinstance(body[key], str):
             errors.append({"loc": [key], "msg": "must be text"})
-    if "lookup" in body and not isinstance(body["lookup"], bool):
-        errors.append({"loc": ["lookup"], "msg": "must be true or false"})
+    for key in ("lookup", "news"):
+        if key in body and not isinstance(body[key], bool):
+            errors.append({"loc": [key], "msg": "must be true or false"})
+    target_id = body.get("target_id")
+    if target_id is not None and (not isinstance(target_id, str) or c.streams.config.target(target_id) is None):
+        errors.append({"loc": ["target_id"], "msg": "unknown stream"})
     if errors:
         raise ValidationFailed(errors)
     try:
+        if target_id is not None and target_id != topic.focus_id and topic.focus_id is not None:
+            await topic.set_stream_topic(target_id, game=body.get("game"), hint=body.get("hint"), notes=body.get("notes"))
+            return JSONResponse(topic.snapshot())
         if "game" in body:
             await topic.set_game(body["game"], body.get("hint"))
         elif "hint" in body:
             await topic.set_game(topic.snapshot()["game"], body["hint"])
         if "notes" in body:
             return JSONResponse(await topic.set_manual_notes(body["notes"]))
-        if body.get("lookup", True):
+        if body.get("news"):
+            await topic.refresh_news()
+        elif body.get("lookup", True):
             await topic.refresh()
     except TopicError as exc:
         if exc.invalid_input:
             raise ValidationFailed([{"loc": ["game"], "msg": str(exc)}]) from exc
         topic.error = str(exc)  # the game change itself worked; show why the lookup did not
     return JSONResponse(topic.snapshot())
+
+
+# ---------------------------------------------------------------------------- which language the bot answers in
+LANGUAGE_NAMES = {"english": "English", "hinglish": "Hinglish (Hindi in English letters)", "hindi": "Hindi (Devanagari)",
+                  "auto": "Match the viewer's language"}
+
+
+def _language_payload(c: Any) -> dict[str, Any]:
+    return {"language": c.settings.reply_language, "options": [{"id": k, "label": v} for k, v in LANGUAGE_NAMES.items()]}
+
+
+@protected
+async def language_status(request: Request) -> JSONResponse:
+    return JSONResponse(_language_payload(_c(request)))
+
+
+@protected
+async def language_change(request: Request) -> JSONResponse:
+    """``{"language": "english" | "hinglish" | "hindi" | "auto"}``: takes effect on the next reply and is remembered."""
+    c = _c(request)
+    body = await _json_body(request)
+    value = body.get("language") if isinstance(body, dict) else None
+    extra = [k for k in body if k != "language"] if isinstance(body, dict) else []
+    if extra or not isinstance(value, str) or value not in LANGUAGE_NAMES:
+        raise ValidationFailed([{"loc": ["language"], "msg": f"must be one of {', '.join(LANGUAGE_NAMES)}"}])
+    c.settings.reply_language = value
+    saved = await _save_json(c, "reply.language", value)
+    return JSONResponse({**_language_payload(c), "saved": saved})
 
 
 # ---------------------------------------------------------------------------- which stream the bot comments in
@@ -530,7 +570,8 @@ async def streams_update(request: Request) -> JSONResponse:
 
 @protected
 async def streams_remove(request: Request) -> JSONResponse:
-    director = _streams(_c(request))
+    c = _c(request)
+    director = _streams(c)
     target_id = request.path_params["target_id"]
     try:
         await director.remove_target(target_id)
@@ -538,6 +579,7 @@ async def streams_remove(request: Request) -> JSONResponse:
         return _unknown_stream(target_id)
     except StreamsError as exc:
         raise ValidationFailed(exc.errors) from exc
+    c.topic.forget(target_id)  # what that stream was about is no longer needed
     return JSONResponse(director.snapshot())
 
 
@@ -667,6 +709,8 @@ routes = [
     Route("/api/platforms/{name}/disconnect", platform_disconnect, methods=["POST"]),
     Route("/api/platforms/{name}/connect", platform_connect, methods=["POST"]),
     Route("/api/relay", relay_status, methods=["GET"]),
+    Route("/api/language", language_status, methods=["GET"]),
+    Route("/api/language", language_change, methods=["POST"]),
     Route("/api/topic", topic_status, methods=["GET"]),
     Route("/api/topic", topic_change, methods=["POST"]),
     Route("/api/streams", streams_status, methods=["GET"]),

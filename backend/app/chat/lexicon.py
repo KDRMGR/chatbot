@@ -62,11 +62,20 @@ _HINGLISH_ABUSE = re.compile(
 )
 
 
+# The same explicit terms in the Devanagari script (viewers write it, and the bot may answer in it). No \b here: Python does not treat the
+# vowel signs of Devanagari as word characters, so a word boundary would cut words in half. Strong terms only, so a match inside another
+# word is very unlikely. "ड़" exists as one character (U+095C) and as ड + nukta (U+0921 U+093C): both spellings are accepted.
+_DEVANAGARI_ABUSE = re.compile(
+    "मादर\\s*चोद|बहन\\s*चोद|भोस(?:ड़|ड़)\\w*|भोसर\\w*|चूतिया|चुतिया|गांडू|गाण्डू|लौ(?:ड़|ड़)ा|लौडा|लंड(?!न)|रंडी|रण्डी"
+    "|हरामी|हरामखोर|हराम(?:ज़ादा|जादा)|कमीना|कमीने|तेरी\\s*(?:माँ|मां|बहन)|माँ\\s*की\\s*आँख"
+)
+
+
 @dataclass
 class Lexicon:
-    abuse_in: list[re.Pattern[str]] = field(default_factory=lambda: [*ABUSE_PATTERNS, _HINGLISH_ABUSE])
+    abuse_in: list[re.Pattern[str]] = field(default_factory=lambda: [*ABUSE_PATTERNS, _HINGLISH_ABUSE, _DEVANAGARI_ABUSE])
     injection_in: list[re.Pattern[str]] = field(default_factory=lambda: list(INJECTION_PATTERNS))
-    banned_out: list[re.Pattern[str]] = field(default_factory=lambda: [_PROFANITY, _HINGLISH_ABUSE, *ABUSE_PATTERNS])
+    banned_out: list[re.Pattern[str]] = field(default_factory=lambda: [_PROFANITY, _HINGLISH_ABUSE, _DEVANAGARI_ABUSE, *ABUSE_PATTERNS])
 
     def matches_abuse(self, text: str) -> bool:
         return any(p.search(text) for p in self.abuse_in)

@@ -29,7 +29,7 @@ from .chat.models import Platform
 from .chat.output_guard import RecentReplies
 from .chat.processor import ChatProcessor
 from .chat.rules import RuleEngine
-from .config import Settings, get_settings
+from .config import REPLY_LANGUAGES, Settings, get_settings
 from .database.database import make_engine, make_session_factory, run_migrations
 from .database.repository import Repository
 from .logging_setup import setup_logging
@@ -123,6 +123,14 @@ def create_app(
                     apply(json.loads(raw))
                 except (ValueError, TypeError, SettingsError):
                     logger.warning("ignoring invalid saved setting %s", key)
+        saved_language = await repo.get_setting("reply.language")  # chosen in the panel earlier
+        if saved_language:
+            try:
+                value = json.loads(saved_language)
+                if value in REPLY_LANGUAGES:
+                    cfg.reply_language = value
+            except (ValueError, TypeError):
+                logger.warning("ignoring an unreadable saved reply language")
         session_manager = SessionManager(repo, cfg, metrics)
         await session_manager.start()
 
@@ -217,6 +225,16 @@ def create_app(
             youtube=youtube, youtube_api=youtube_api, quota=quota, kick=adapters.get(Platform.KICK), save=save_streams,
             log_event=log_streams, persist_quota=persist_quota, first_delay_s=cfg.streams_first_check_delay_s)
         await director.load(await repo.get_setting("streams.config"))  # the watch list and the selection, saved earlier
+
+        async def on_focus(target_id: str, label: str, first: bool) -> None:
+            """The bot is now in another stream: that stream's own topic and headlines replace the previous one's, and the
+            previous stream's chat is forgotten (it has nothing to do with this one)."""
+            changed = await topic.switch_to(target_id, label)
+            if changed and not first:
+                context.reset_chat()
+                logger.info("Topic switched with the stream to '%s' (%s)", label, context.game_label)
+
+        director.on_focus = on_focus
         app.state.container = Container(
             settings=cfg, engine=engine, repo=repo, ollama=ollama, model_manager=model_manager,
             generator=generator, processor=processor, session_manager=session_manager, metrics=metrics,
@@ -251,7 +269,7 @@ def create_app(
             asyncio.create_task(run_gc_loop(cfg.gc_interval_s), name="memory-housekeeping"),
             asyncio.create_task(processor.run_approval_sweeper(), name="approval-sweeper"),
             asyncio.create_task(director.run(), name="stream-director"),
-            asyncio.create_task(topic.startup_refresh(), name="topic-lookup"),  # one web lookup at start; failure is harmless
+            asyncio.create_task(topic.run_loop(), name="topic-lookup"),  # looks the topic up at start, after a switch, and keeps headlines fresh
         ]
         if relay is not None:
             background.append(asyncio.create_task(relay.run(), name="online-panel-relay"))

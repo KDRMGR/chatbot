@@ -59,6 +59,7 @@ class ResponseGenerator:
             text, lexicon=self._lex, recent=self._recent.all(), max_words=self._s.reply_max_words,
             min_words=self._s.reply_min_words, max_chars=self._s.limits_for(platform).max_chars,
             similarity_threshold=self._s.similarity_threshold,
+            allow_devanagari=self._s.reply_language in ("hindi", "auto"),  # English and Hinglish are written in English letters
         )
 
     async def generate(

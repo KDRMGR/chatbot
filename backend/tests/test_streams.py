@@ -13,7 +13,7 @@ from app.platforms.base import ConnectionState, ConnectionStatus
 from app.streams.choose import DOWN_PROBES, Live, TargetState, choose, observe
 from app.streams.director import StreamDirector
 from app.streams.model import (
-    MAX_TARGETS, StreamsConfig, StreamsError, StreamTarget, parse_youtube_ref,
+    MAX_TARGETS, StreamsConfig, StreamsError, StreamTarget, detect_platform, parse_kick_ref, parse_youtube_ref,
 )
 
 CH_A = "UC" + "a" * 22
@@ -345,12 +345,31 @@ class FakeYouTube:
 
 
 class FakeKick(FakeYouTube):
+    """Stands in for KickAdapter. ``channels`` is what Kick's channel lookup says: {name: is_live}."""
+
     def __init__(self) -> None:
         super().__init__()
         self.live: bool | None = True
+        self.default = "defaultchan"
+        self.channels: dict[str, bool] = {"defaultchan": True}
+        self.lookup_error: Exception | None = None
+        self.lookups: list[list[str]] = []
+        self.retargets: list[str | None] = []  # kept apart from ``calls`` (start/stop)
 
     def details(self) -> dict[str, Any]:
         return {"is_live": self.live}
+
+    def default_slug(self) -> str | None:
+        return self.default
+
+    async def live_status(self, slugs):
+        self.lookups.append(list(slugs))
+        if self.lookup_error:
+            raise self.lookup_error
+        return {s: {"is_live": self.channels[s], "title": f"{s} live"} for s in slugs if s in self.channels}
+
+    async def retarget(self, slug):
+        self.retargets.append(slug)
 
 
 class FakeYtApi:
@@ -619,10 +638,150 @@ async def test_strict_mode_idles_the_other_platforms_and_the_adapter():
 
 
 # ---------------------------------------------------------------------------- editing rules
-async def test_kick_channels_cannot_be_added_and_the_reason_is_given():
+# ---------------------------------------------------------------------------- Kick channels on the list
+@pytest.mark.parametrize("text,expected", [
+    ("StealhModeGG", "stealhmodegg"), ("@StealhModeGG", "stealhmodegg"), ("https://kick.com/StealhModeGG", "stealhmodegg"),
+    ("kick.com/some_one-1/", "some_one-1"), ("https://www.kick.com/abc?x=1", "abc"), ("  m.kick.com/abc  ", "abc"),
+])
+def test_pasted_kick_links_are_understood(text, expected):
+    assert parse_kick_ref(text) == expected
+
+
+@pytest.mark.parametrize("text,fragment", [
+    ("", "paste"), ("https://example.com/abc", "not a Kick"), ("https://kick.com/", "not a channel"),
+    ("https://kick.com/video/123e4567", "not a channel"), ("https://kick.com/categories/gta", "not a channel"),
+    ("a" * 26, "not a valid"), ("has space", "not a valid"), ("-leading", "not a valid"),
+])
+def test_bad_kick_references_are_refused_with_a_reason(text, fragment):
+    with pytest.raises(StreamsError) as exc:
+        parse_kick_ref(text)
+    assert fragment in str(exc.value)
+
+
+def test_the_platform_is_recognised_from_the_link():
+    assert detect_platform("https://kick.com/abc") == "kick"
+    assert detect_platform("youtu.be/" + VID_1) == "youtube"
+    assert detect_platform("https://example.com/x") is None
+    assert detect_platform("abc") is None  # a bare word could be anything: the caller has to name the platform
+
+
+async def test_a_kick_channel_can_be_added_from_a_link_without_naming_the_platform():
     rig = await make_rig()
-    with pytest.raises(StreamsError, match="signed in with"):
-        await rig.director.add_target({"platform": "kick", "ref": "someone"})
+    added = await rig.director.add_target({"ref": "https://kick.com/OtherGuy"})
+    assert (added["platform"], added["kind"], added["ref"], added["label"]) == ("kick", "channel", "otherguy", "Kick: otherguy")
+    with pytest.raises(StreamsError, match="already on the list"):
+        await rig.director.add_target({"platform": "kick", "ref": "otherguy"})
+    with pytest.raises(StreamsError, match="default Kick channel"):
+        await rig.director.add_target({"ref": "kick.com/defaultchan"})  # the default entry already stands for it
+    with pytest.raises(StreamsError, match="full YouTube or Kick link"):
+        await rig.director.add_target({"ref": "justaword"})
+    off = await make_rig(kick=False)
+    with pytest.raises(StreamsError, match="Kick is not enabled"):
+        await off.director.add_target({"ref": "kick.com/abc"})
+    reloaded = await make_rig(saved=rig.saved[-1])  # it survives a restart
+    assert any(t.kind == "channel" and t.platform == "kick" and t.ref == "otherguy" for t in reloaded.director.config.targets)
+
+
+async def test_the_default_kick_entry_is_named_after_its_channel():
+    rig = await make_rig()
+    shown = {t["id"]: t["label"] for t in rig.director.snapshot()["targets"]}
+    assert shown["kick-own"] == "Kick: defaultchan"
+
+
+async def test_one_lookup_tells_which_kick_channels_are_live_and_the_bot_moves_to_the_selected_one():
+    rig = await make_rig(youtube=False)
+    other = await rig.director.add_target({"ref": "kick.com/otherguy"})
+    rig.kick.channels = {"defaultchan": True, "otherguy": True}
+    await rig.director.select(other["id"])
+    await rig.director.tick()
+    assert rig.kick.lookups[-1] == ["defaultchan", "otherguy"]  # ONE call for both channels
+    assert rig.kick.retargets == ["otherguy"]
+    snap = rig.director.snapshot()
+    assert snap["now"]["kick"]["target_id"] == other["id"] and snap["focus"]["id"] == other["id"]
+    assert {t["id"]: t["live"] for t in snap["targets"]} == {"kick-own": True, other["id"]: True}
+    await rig.director.select(None)  # back to automatic: it stays where it is while that channel is live
+    await rig.director.tick()
+    assert rig.kick.retargets == ["otherguy"]
+
+
+async def test_a_selected_kick_channel_that_is_offline_does_not_leave_kick_idle():
+    rig = await make_rig(youtube=False)
+    other = await rig.director.add_target({"ref": "kick.com/otherguy"})
+    rig.kick.channels = {"defaultchan": False, "otherguy": False}
+    await rig.director.select(other["id"])
+    await rig.director.tick()
+    d = rig.director.snapshot()["now"]["kick"]
+    assert d["target_id"] == "kick-own" and "keeps listening" in d["reason"]  # nobody is live: it listens in the default channel
+    assert rig.kick.calls == []  # never stopped
+    rig.kick.channels["otherguy"] = True  # the selected channel goes live: the bot moves there
+    await rig.director.tick()
+    assert rig.director.snapshot()["now"]["kick"]["target_id"] == other["id"] and rig.kick.retargets == ["otherguy"]
+
+
+async def test_a_failed_kick_lookup_says_nothing_about_the_channels():
+    rig = await make_rig(youtube=False)
+    other = await rig.director.add_target({"ref": "kick.com/otherguy"})
+    rig.kick.channels = {"defaultchan": True, "otherguy": True}
+    await rig.director.select(other["id"])
+    await rig.director.tick()
+    rig.kick.lookup_error = RuntimeError("kick is down")
+    for _ in range(DOWN_PROBES + 2):
+        await rig.director.tick()
+    assert rig.director.snapshot()["now"]["kick"]["target_id"] == other["id"]  # an outage of the lookup is not "offline"
+    row = next(t for t in rig.director.snapshot()["targets"] if t["id"] == other["id"])
+    assert row["live"] is True and row["error"] == "RuntimeError"  # the last known state is kept, the problem is shown
+
+
+async def test_a_channel_that_does_not_exist_is_reported_not_called_offline():
+    rig = await make_rig(youtube=False)
+    ghost = await rig.director.add_target({"ref": "kick.com/ghostchannel"})
+    await rig.director.tick()
+    row = next(t for t in rig.director.snapshot()["targets"] if t["id"] == ghost["id"])
+    assert row["live"] is None and "no such channel" in row["error"]
+
+
+async def test_switching_streams_tells_the_topic_which_stream_the_bot_is_in():
+    rig = await make_rig(youtube=False)
+    seen: list[tuple[str, str, bool]] = []
+
+    async def on_focus(target_id, label, first):
+        seen.append((target_id, label, first))
+
+    rig.director.on_focus = on_focus
+    other = await rig.director.add_target({"ref": "kick.com/otherguy"})
+    rig.kick.channels = {"defaultchan": True, "otherguy": True}
+    await rig.director.tick()
+    assert seen == [("kick-own", "Kick: defaultchan", True)]
+    await rig.director.tick()
+    assert len(seen) == 1  # no change: no call
+    await rig.director.select(other["id"])
+    await rig.director.tick()
+    assert seen[-1] == (other["id"], "Kick: otherguy", False)
+    await rig.director.select("kick-own")
+    await rig.director.tick()
+    assert seen[-1] == ("kick-own", "Kick: defaultchan", False)
+
+
+async def test_a_topic_problem_does_not_stop_the_stream_decisions():
+    rig = await make_rig(youtube=False)
+
+    async def broken(target_id, label, first):
+        raise RuntimeError("topic store is broken")
+
+    rig.director.on_focus = broken
+    await rig.director.tick()
+    assert rig.director.snapshot()["now"]["kick"]["target_id"] == "kick-own"
+
+
+async def test_the_selected_stream_is_the_focus_when_both_platforms_are_active():
+    rig = await make_rig()
+    rig.api.own = SimpleNamespace(video_id="own-video", title="mine")
+    rig.yt.state, rig.yt.video_id = ConnectionState.CONNECTED, "own-video"
+    await rig.director.tick()
+    assert rig.director.focus_id() == "youtube-own"  # first on the list
+    await rig.director.select("kick-own")
+    await rig.director.tick()
+    assert rig.director.focus_id() == "kick-own"
 
 
 async def test_adding_validates_everything():

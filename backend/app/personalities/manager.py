@@ -50,14 +50,22 @@ class PersonalityManager:
     def get(self, name: str) -> PersonalityProfile | None:
         return self._profiles.get(name)
 
-    def select(self, category: Category) -> PersonalityProfile | None:
+    def select(self, category: Category, prefer: str | None = None) -> PersonalityProfile | None:
         """Pick one enabled personality that handles ``category`` (weighted random by frequency), preferring
         those off cooldown. Selecting does not start the cooldown; call ``mark_used`` once a message was sent.
+
+        ``prefer`` keeps a conversation with the same voice: if that personality is enabled and handles ``category`` it is
+        chosen even while it is cooling down (the cooldown spaces out unprompted chatter; a reply inside a conversation is
+        not that, and the per-viewer cooldown and the platform rate limiter still protect against spam).
 
         Greetings and questions come from real viewers and must never go unanswered just because the only
         fitting personality spoke recently: if every candidate is cooling down, the one that spoke LONGEST ago
         answers. (The per-viewer cooldown and the platform rate limiter still protect against spam.)
         """
+        if prefer:
+            wanted = self._profiles.get(prefer)
+            if wanted is not None and wanted.enabled and category.value in wanted.categories and wanted.frequency > 0:
+                return wanted
         now = self._clock()
         candidates = [
             p for p in self._profiles.values() if p.enabled and category.value in p.categories and p.frequency > 0

@@ -8,8 +8,10 @@ Rules, per platform:
   * With nothing selected and automatic selection on, the bot stays in the stream it is already in while that is live,
     otherwise starts with the live stream that has the highest priority (list order breaks ties).
   * With automatic selection OFF the bot only ever uses the stream you selected, on that stream's platform.
-  * Kick has exactly one stream the bot can read (the signed-in channel), so it is simply on or off: it is never
-    switched off because the channel is offline (the chat connection is what notices the stream starting).
+  * Kick with only its default channel on the list is simply on or off: it is never switched off because the channel is
+    offline (the chat connection is what notices the stream starting). With more Kick channels on the list the rules above
+    apply to them too, but Kick is still never left idle: when nothing is chosen the bot stays where it is (or in the
+    default channel), so it keeps listening.
 A live stream must fail ``DOWN_PROBES`` checks in a row before it counts as offline (one failed check is not an outage).
 """
 from __future__ import annotations
@@ -76,9 +78,6 @@ def _ranked(targets: Iterable[StreamTarget]) -> list[StreamTarget]:
 
 def choose(cfg: StreamsConfig, states: dict[str, TargetState], previous: dict[str, str | None],
            now: float) -> dict[str, Decision]:
-    def live(t: StreamTarget) -> bool:
-        return states.get(t.id, TargetState()).live
-
     pinned = cfg.target(cfg.pinned)
     if pinned is not None and not pinned.enabled:
         pinned = None
@@ -92,40 +91,48 @@ def choose(cfg: StreamsConfig, states: dict[str, TargetState], previous: dict[st
             out[platform] = Decision(None, "automatic selection is off and the stream you selected is on another platform"
                                      if pinned else "automatic selection is off and no stream is selected")
             continue
-        if platform in ALWAYS_ON:
+        if platform in ALWAYS_ON and len(targets) == 1:
             out[platform] = Decision(targets[0].id, "the signed-in channel is always watched")
             continue
 
-        best = next(iter(_ranked(t for t in targets if live(t))), None)
-        prev_id = previous.get(platform)
-        if pinned is not None and pinned.platform == platform:
-            st = states.get(pinned.id, TargetState())
-            if st.live:
-                out[platform] = Decision(pinned.id, "selected by you")
-                continue
-            if not cfg.auto_select:
-                out[platform] = Decision(None, "waiting for the stream you selected to go live (automatic selection is off)")
-                continue
-            offline_for = now - (st.offline_since if st.offline_since is not None else now)
-            if offline_for < cfg.failover_after_s:
-                prev = cfg.target(prev_id)
-                if prev is not None and prev.enabled and prev.id != pinned.id and prev.platform == platform and live(prev):
-                    out[platform] = Decision(prev.id, "staying here; waiting for the stream you selected to go live")
-                else:
-                    left = int(cfg.failover_after_s - offline_for)
-                    out[platform] = Decision(None, f"waiting for the stream you selected to go live ({left} s before using another)")
-                continue
-            if best is not None:
-                out[platform] = Decision(best.id, "the stream you selected is offline: using a live stream from your list")
-            else:
-                out[platform] = Decision(None, "the stream you selected is offline and no other stream on your list is live")
-            continue
-        # nothing selected on this platform (automatic selection is on here)
-        prev = cfg.target(prev_id)
-        if prev is not None and prev.enabled and prev.platform == platform and live(prev):
-            out[platform] = Decision(prev.id, "still live")
-        elif best is not None:
-            out[platform] = Decision(best.id, "automatic: the live stream with the highest priority")
-        else:
-            out[platform] = Decision(None, "no stream on your list is live")
+        decision = _decide(cfg, states, previous, now, platform, targets, pinned)
+        if decision.target_id is None and platform in ALWAYS_ON:
+            # Kick keeps listening: stay in the channel we are in, or go back to the default one.
+            prev = cfg.target(previous.get(platform))
+            stay = prev if (prev is not None and prev.enabled and prev.platform == platform) else next(
+                (t for t in targets if t.kind == "own"), targets[0])
+            decision = Decision(stay.id, f"{decision.reason}; the bot keeps listening in '{stay.label}'")
+        out[platform] = decision
     return out
+
+
+def _decide(cfg: StreamsConfig, states: dict[str, TargetState], previous: dict[str, str | None], now: float, platform: str,
+            targets: list[StreamTarget], pinned: StreamTarget | None) -> Decision:
+    def live(t: StreamTarget) -> bool:
+        return states.get(t.id, TargetState()).live
+
+    best = next(iter(_ranked(t for t in targets if live(t))), None)
+    prev_id = previous.get(platform)
+    if pinned is not None and pinned.platform == platform:
+        st = states.get(pinned.id, TargetState())
+        if st.live:
+            return Decision(pinned.id, "selected by you")
+        if not cfg.auto_select:
+            return Decision(None, "waiting for the stream you selected to go live (automatic selection is off)")
+        offline_for = now - (st.offline_since if st.offline_since is not None else now)
+        if offline_for < cfg.failover_after_s:
+            prev = cfg.target(prev_id)
+            if prev is not None and prev.enabled and prev.id != pinned.id and prev.platform == platform and live(prev):
+                return Decision(prev.id, "staying here; waiting for the stream you selected to go live")
+            left = int(cfg.failover_after_s - offline_for)
+            return Decision(None, f"waiting for the stream you selected to go live ({left} s before using another)")
+        if best is not None:
+            return Decision(best.id, "the stream you selected is offline: using a live stream from your list")
+        return Decision(None, "the stream you selected is offline and no other stream on your list is live")
+    # nothing selected on this platform (automatic selection is on here)
+    prev = cfg.target(prev_id)
+    if prev is not None and prev.enabled and prev.platform == platform and live(prev):
+        return Decision(prev.id, "still live")
+    if best is not None:
+        return Decision(best.id, "automatic: the live stream with the highest priority")
+    return Decision(None, "no stream on your list is live")

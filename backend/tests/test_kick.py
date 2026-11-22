@@ -702,6 +702,34 @@ async def test_retarget_moves_between_the_own_channel_and_another_one(tmp_path):
     await close(rig)
 
 
+async def test_retarget_without_a_name_goes_back_to_the_configured_default_channel_not_the_accounts_own(tmp_path):
+    rig = await make_rig(tmp_path, kick_target_channel="otherchannel")
+    await connected(rig)
+    assert rig.adapter.default_slug() == "otherchannel" and rig.adapter.details()["default_channel"] == "otherchannel"
+    await rig.adapter.retarget("stealthmodegg")  # the signed-in account's own channel, named on purpose
+    await connected(rig)
+    assert rig.adapter.details()["channel"] == "stealthmodegg"
+    await rig.adapter.retarget(None)  # "default" means the channel the bot was set up for
+    await connected(rig)
+    assert rig.adapter.details()["channel"] == "otherchannel" and rig.adapter.details()["answering_in_own_channel"] is False
+    await close(rig)
+
+
+async def test_the_default_channel_is_the_accounts_own_when_nothing_else_is_configured(tmp_path):
+    rig = await make_rig(tmp_path)
+    await connected(rig)
+    assert rig.adapter.default_slug() == "stealthmodegg"
+    await close(rig)
+
+
+async def test_live_status_asks_for_all_the_channels_in_one_call(tmp_path):
+    rig = await make_rig(tmp_path)
+    await connected(rig)
+    found = await rig.adapter.live_status(["otherchannel", "stealthmodegg", "nobody"])
+    assert set(found) == {"otherchannel", "stealthmodegg"} and all("is_live" in row for row in found.values())
+    await close(rig)
+
+
 async def test_the_app_token_is_cached_renewed_after_a_401_and_never_used_for_the_accounts_own_calls(tmp_path):
     rig = await make_rig(tmp_path, kick_target_channel="otherchannel")
     await connected(rig)

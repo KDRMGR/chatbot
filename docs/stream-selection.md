@@ -23,19 +23,22 @@ The YouTube side has NOT been run against the real YouTube** (the Google setup i
 | YouTube, signed-in account's own stream | read from the YouTube connection itself while it is connected (free); `liveBroadcasts.list` (1 unit) only while the bot is in another stream | none / 1 unit per check |
 | YouTube video (paste a watch / youtu.be / live link or the 11-character id) | `videos.list` (1 unit) per check; free while the bot is already in that video | 1 unit per minute |
 | YouTube channel (paste a youtube.com/channel/UC... link or the id) | `search.list`, which has its own small daily allowance (the quota guard enforces it), so each channel is checked only every 15 minutes (setting); with 2 channels each is checked every 30 minutes | 100 units of the separate search allowance |
-| Kick, the signed-in account's channel | the Kick connection's live flag | none |
+| Kick, the default channel (`STEALTHBOT_KICK_TARGET_CHANNEL`, or the signed-in account's own channel) | Kick's channel lookup | none |
+| Kick channel (paste `kick.com/name`) | the same lookup: ONE call (`GET /channels?slug=a&slug=b`) covers every Kick channel on the list | none (about one call a minute) |
 
 Every call goes through the existing YouTube quota guard; a blocked check is shown as *unknown* with the reason.
 
 ## Limits you should know about
-- **Kick: only the signed-in channel.** With a user sign-in, Kick's API ignores any other channel id when subscribing to chat events
-  (its documentation says the broadcaster id "will be ignored" for a user token), so the bot can read chat only on the channel of
-  the account it signed in with. Other Kick channels cannot be added. Whether an app-level token could read other channels is not
-  documented, so it was not built. Kick also has no documented "stream went live" event, so the live flag comes from polling.
+- **Kick: other channels work, with a different mechanism.** Chat of a channel other than the signed-in account's is read through
+  the app's own token (an app token CAN subscribe to another channel; verified live), and the bot's answers are posted there as the
+  signed-in account (a normal user message, verified live). Kick has no documented "stream went live" event, so the live flag comes
+  from polling the channel lookup. Moving to another Kick channel reconnects the chat listener (a few seconds).
+  When no Kick channel on the list is live the bot is **not** switched off: it stays where it is (or in the default channel), so it keeps
+  listening.
 - **YouTube channel handles (@name) cannot be looked up.** Paste the youtube.com/channel/UC... address instead.
 - **Only add streams you own or have the owner's permission to chat in.** An automatic bot in someone else's chat can break the
   platform's rules and annoy people.
-- The bot's context (streamer name, game) is still the one in the settings; it does not change per stream.
+- **Every stream has its own topic and the chat memory is cleared when the bot moves** (see `stream-topic.md`).
 - **Not verified live:** moving the real YouTube connection to another video, the real search/videos checks, and quota use over a
   whole stream. Tested only against a fake Google.
 - A short wait applies after the bot starts (15 s) so the connections can come up before the first look.

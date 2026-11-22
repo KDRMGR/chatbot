@@ -116,7 +116,8 @@ class RuleEngine:
 
     @property
     def _hinglish(self) -> bool:
-        return self._s.reply_language == "hinglish"
+        # The prepared (no-AI) messages exist in English and Hinglish; the Hindi and "match the viewer" modes use the Hinglish ones.
+        return self._s.reply_language != "english"
 
     def _safe_name(self, username: str) -> str:
         """Usernames are viewer-controlled; never echo one that is a link or trips the abuse/profanity lists."""
@@ -138,6 +139,8 @@ class RuleEngine:
         if command == "!commands":
             return ("Commands: " if not hi else "Commands yeh hain: ") + ", ".join(sorted(self._s.allowed_commands))
         if command == "!game":
+            if not self._ctx.game:
+                return "Abhi stream ka topic set nahi hai. Chat mein batao, kya chal raha hai?" if hi else "The topic of this stream is not set yet. Tell me what is going on in chat!"
             if hi:
                 return f"Abhi chal raha hai: {self._ctx.game}. Iske baare mein kuch bhi poocho!"
             return f"Currently playing: {self._ctx.game}. Ask me anything about it!"

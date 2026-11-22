@@ -19,22 +19,84 @@
   </header>
 
   <main>
+    <!-- 1. What is happening right now, and the two things you change most: pause, and the language. -->
+    <section class="card hero" id="card-now">
+      <div class="hero-main">
+        <div class="hero-label">The bot is commenting in</div>
+        <div class="hero-stream" id="now-stream">Waiting for the bot...</div>
+        <div class="hero-sub" id="now-topic"></div>
+      </div>
+      <div class="hero-side">
+        <label class="inline"><span>Reply language</span>
+          <select id="sel-language"><option>...</option></select></label>
+        <div class="row">
+          <button type="button" id="btn-pause" class="danger">Pause all replies</button>
+          <button type="button" id="btn-resume">Resume replies</button>
+        </div>
+        <p class="hint" id="controls-msg" role="status"></p>
+      </div>
+    </section>
+
     <div class="grid">
+      <!-- 2. Pick the stream. One click. -->
+      <section class="card wide" id="card-streams">
+        <h2>Which stream?</h2>
+        <p class="hint">Click a stream to make the bot comment there. Each stream keeps its own topic, so the bot's knowledge switches with it.</p>
+        <div id="streams-body" class="choices"></div>
+        <form id="form-add-stream" class="row add-row">
+          <label class="field grow"><span>Add a stream: paste a Kick or YouTube link</span>
+            <input type="text" id="stream-ref" autocomplete="off" placeholder="kick.com/channelname  or  youtube.com/watch?v=..."></label>
+          <button type="submit">Add</button>
+        </form>
+        <p class="hint" id="streams-msg" role="status"></p>
+      </section>
+
+      <!-- 3. What that stream is about, and where the bot learns it from. -->
+      <section class="card wide" id="card-topic">
+        <h2>What is the stream about?</h2>
+        <label class="inline"><span>Topic for</span>
+          <select id="sel-topic-stream"></select></label>
+        <p class="hint" id="topic-state"></p>
+        <form id="form-topic">
+          <div class="two">
+            <label class="field"><span>Game or show</span><input type="text" id="topic-game" maxlength="60" autocomplete="off" placeholder="for example BB20"></label>
+            <label class="field"><span>Search words (optional, helps the lookup)</span><input type="text" id="topic-hint" maxlength="80" autocomplete="off" placeholder="for example Bigg Boss 20 Hindi TV show"></label>
+          </div>
+          <div class="row">
+            <button type="submit">Save and look it up on the internet</button>
+            <button type="button" class="quiet" id="btn-news">Refresh headlines only</button>
+          </div>
+        </form>
+        <div id="topic-know">
+          <h3>What the bot knows</h3>
+          <div id="topic-sources" class="chips"></div>
+          <label class="field"><span>Background note (edit if it is wrong)</span><textarea id="topic-notes" rows="4" maxlength="1000"></textarea></label>
+          <button type="button" id="btn-topic-notes">Save my own note</button>
+          <div id="topic-headlines"></div>
+        </div>
+        <p class="hint" id="topic-msg" role="status"></p>
+      </section>
+
       <section class="card" id="card-status">
         <h2>Status</h2>
         <div id="status-body"></div>
       </section>
 
       <section class="card" id="card-controls">
-        <h2>Controls</h2>
-        <div class="row">
-          <button type="button" id="btn-pause" class="danger">Pause all replies</button>
-          <button type="button" id="btn-resume">Resume replies</button>
-        </div>
+        <h2>Switches</h2>
         <label class="switch-row"><input type="checkbox" id="chk-approval"><span>Ask me before anything is sent</span></label>
         <label class="switch-row"><input type="checkbox" id="chk-ai"><span>AI replies on</span></label>
         <label class="switch-row"><input type="checkbox" id="chk-proactive"><span>Bot may start conversations</span></label>
-        <p class="hint" id="controls-msg" role="status"></p>
+      </section>
+
+      <section class="card wide" id="card-approvals">
+        <h2>Replies waiting for approval</h2>
+        <div id="approvals-body"></div>
+      </section>
+
+      <section class="card wide" id="card-feed">
+        <h2>Live chat</h2>
+        <div id="feed-body" class="feed"></div>
       </section>
 
       <section class="card" id="card-talk">
@@ -59,37 +121,10 @@
         <p class="hint" id="talk-msg" role="status"></p>
       </section>
 
-      <section class="card wide" id="card-approvals">
-        <h2>Replies waiting for approval</h2>
-        <div id="approvals-body"></div>
-      </section>
-
-      <section class="card wide" id="card-feed">
-        <h2>Live chat</h2>
-        <div id="feed-body" class="feed"></div>
-      </section>
-
-      <section class="card" id="card-streams">
-        <h2>Streams</h2>
-        <div id="streams-body"></div>
-        <form id="form-add-stream">
-          <label class="field"><span>Add a YouTube video or channel link</span>
-            <input type="text" id="stream-ref" autocomplete="off" placeholder="youtu.be/... or youtube.com/channel/UC..."></label>
-          <button type="submit">Add</button>
-        </form>
-        <p class="hint" id="streams-msg" role="status"></p>
-      </section>
-
-      <section class="card" id="card-topic">
-        <h2>What the stream is about</h2>
-        <form id="form-topic">
-          <label class="field"><span>Game or show</span><input type="text" id="topic-game" maxlength="60" autocomplete="off"></label>
-          <label class="field"><span>Search words (optional)</span><input type="text" id="topic-hint" maxlength="80" autocomplete="off"></label>
-          <button type="submit">Save and look it up</button>
-        </form>
-        <label class="field"><span>What the bot knows (edit if wrong)</span><textarea id="topic-notes" rows="4" maxlength="1000"></textarea></label>
-        <button type="button" id="btn-topic-notes">Save my own notes</button>
-        <p class="hint" id="topic-msg" role="status"></p>
+      <section class="card" id="card-people">
+        <h2>The bot's characters</h2>
+        <p class="hint">One character writes each reply, picked by what the message is (a greeting, a question, a joke...). Someone who is chatting with the bot keeps the same character for two minutes, and your own talk always goes to ChatBuddy. They are never all active at once.</p>
+        <div id="people-body"></div>
       </section>
 
       <section class="card" id="card-log">

@@ -6,8 +6,11 @@ A target is one place the bot may comment:
   youtube / channel  a channel (UC... id); the live stream of that channel is looked up with YouTube's search
   kick    / own      the signed-in Kick account's channel
 
-Kick channels other than the signed-in one cannot be added: with a user sign-in Kick's API only delivers chat
-events for the signed-in account's own channel (swagger: ``broadcaster_user_id`` "will be ignored" for a user token).
+  kick    / channel  another Kick channel, by its name (the part after kick.com/)
+
+Kick channels other than the default one ARE possible: chat of another channel is read through the app's own token, and the bot's
+answers are posted there as the signed-in account (verified live, see docs/phase4-kick.md). The ``own`` Kick entry is the channel
+the bot starts in (``STEALTHBOT_KICK_TARGET_CHANNEL``, or the signed-in account's channel when that is empty).
 """
 from __future__ import annotations
 
@@ -19,13 +22,17 @@ from urllib.parse import parse_qs, urlparse
 
 MAX_TARGETS = 20
 PLATFORMS = ("youtube", "kick")
-KINDS = {"youtube": ("own", "video", "channel"), "kick": ("own",)}
+KINDS = {"youtube": ("own", "video", "channel"), "kick": ("own", "channel")}
 OWN_IDS = {"youtube": "youtube-own", "kick": "kick-own"}
 OWN_LABELS = {"youtube": "YouTube: the signed-in account's live stream", "kick": "Kick: the signed-in account's channel"}
 
 YT_CHANNEL_RE = re.compile(r"^UC[0-9A-Za-z_-]{22}$")
 YT_VIDEO_RE = re.compile(r"^[0-9A-Za-z_-]{11}$")
 _YT_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be", "www.youtu.be"}
+# Kick's API takes channel names of at most 25 characters (swagger, GET /channels?slug=); names are lower-case letters, digits, - and _.
+KICK_SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,24}$")
+_KICK_HOSTS = {"kick.com", "www.kick.com", "m.kick.com"}
+_KICK_NOT_CHANNELS = {"video", "videos", "categories", "category", "browse", "dashboard", "search", "following", "clips", "settings"}
 
 LABEL_MAX = 60
 
@@ -70,8 +77,10 @@ class StreamTarget:
             raise ValueError(f"unknown stream type {platform}/{kind}")
         if kind == "video" and not YT_VIDEO_RE.match(ref):
             raise ValueError("bad video id")
-        if kind == "channel" and not YT_CHANNEL_RE.match(ref):
+        if kind == "channel" and platform == "youtube" and not YT_CHANNEL_RE.match(ref):
             raise ValueError("bad channel id")
+        if kind == "channel" and platform == "kick" and not KICK_SLUG_RE.match(ref):
+            raise ValueError("bad Kick channel name")
         priority = data.get("priority", 50)
         if isinstance(priority, bool) or not isinstance(priority, int) or not 0 <= priority <= 100:
             raise ValueError("bad priority")
@@ -89,9 +98,44 @@ def clean_label(text: str) -> str:
 def default_label(platform: str, kind: str, ref: str) -> str:
     if kind == "own":
         return OWN_LABELS[platform]
+    if platform == "kick":
+        return f"Kick: {ref}"
     if kind == "video":
         return f"YouTube video {ref}"
     return f"YouTube channel {ref}"
+
+
+def parse_kick_ref(text: str) -> str:
+    """A pasted Kick link (kick.com/name) or a bare channel name -> the lower-case channel name. Raises StreamsError."""
+    raw = (text or "").strip()
+    if not raw:
+        raise _err("ref", "paste a Kick channel link (kick.com/name) or the channel name")
+    candidate = raw.lstrip("@")
+    if "/" in raw or "." in raw:
+        parsed = urlparse(raw if "://" in raw else "https://" + raw)
+        if (parsed.hostname or "").lower() not in _KICK_HOSTS:
+            raise _err("ref", "that is not a Kick address")
+        parts = [p for p in parsed.path.split("/") if p]
+        if not parts or parts[0].lower() in _KICK_NOT_CHANNELS:
+            raise _err("ref", "that Kick address is not a channel: paste the channel link (kick.com/name)")
+        candidate = parts[0]
+    candidate = candidate.lower()
+    if not KICK_SLUG_RE.match(candidate):
+        raise _err("ref", "not a valid Kick channel name (letters, digits, - and _, at most 25 characters)")
+    return candidate
+
+
+def detect_platform(text: str) -> str | None:
+    """Which platform a pasted link belongs to (by its host), or None when it is not a recognisable link."""
+    raw = (text or "").strip()
+    if "/" not in raw and "." not in raw:
+        return None
+    host = (urlparse(raw if "://" in raw else "https://" + raw).hostname or "").lower()
+    if host in _KICK_HOSTS:
+        return "kick"
+    if host in _YT_HOSTS:
+        return "youtube"
+    return None
 
 
 def parse_youtube_ref(text: str) -> tuple[str, str]:

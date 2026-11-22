@@ -38,7 +38,8 @@ COMMANDS: dict[str, tuple[str, frozenset[str]]] = {
     "remove_stream": ("/api/streams/targets/{id}/remove", frozenset({"id"})),
     "stream_settings": ("/api/streams/settings",
                         frozenset({"auto_select", "failover_after_s", "poll_interval_s", "youtube_channel_probe_s"})),
-    "set_topic": ("/api/topic", frozenset({"game", "hint", "notes", "lookup"})),
+    "set_topic": ("/api/topic", frozenset({"game", "hint", "notes", "lookup", "news", "target_id"})),
+    "set_language": ("/api/language", frozenset({"language"})),
 }
 ROLE_KINDS: dict[str, frozenset[str]] = {
     "admin": frozenset(COMMANDS) | {"say"},
@@ -172,17 +173,23 @@ class RelayService:
     # ------------------------------------------------------------------ status
     async def build_status(self) -> dict[str, Any]:
         n = self._s.relay_feed_items
-        status, streams, topic, approvals, feed = await asyncio.gather(
+        status, streams, topic, approvals, language, people, feed = await asyncio.gather(
             self._get("/api/status"), self._get("/api/streams"), self._get("/api/topic"), self._get("/api/approvals"),
+            self._get("/api/language"), self._get("/api/personalities"),
             self._get(f"/api/messages?limit={n}") if n else asyncio.sleep(0, result=[]))
         lines = []
         for m in (feed or [])[:n]:
             reply = m.get("response") or {}
             lines.append({"time": m.get("timestamp"), "platform": m.get("platform"), "user": str(m.get("username"))[:30],
                           "text": str(m.get("message"))[:200], "category": m.get("category"), "bot": m.get("is_bot_message"),
-                          "reply": str(reply.get("text"))[:200] if reply.get("text") else None, "delivery": reply.get("delivery_status")})
+                          "reply": str(reply.get("text"))[:200] if reply.get("text") else None, "delivery": reply.get("delivery_status"),
+                          "personality": str(reply.get("personality"))[:30] if reply.get("personality") else None})
+        # who the bot can be: only names and what each is for (the prompts stay on this PC)
+        characters = [{"name": str(p.get("name"))[:30], "enabled": bool(p.get("enabled")), "description": str(p.get("description"))[:120],
+                       "ready_in_s": p.get("ready_in_s")} for p in (people or [])[:10]]
         data = {"v": 1, "published_at": self._now().isoformat(), "status": status, "streams": streams, "topic": topic,
-                "approvals": approvals, "feed": lines, "relay": self.public_state()}
+                "approvals": approvals, "feed": lines, "relay": self.public_state(), "language": language,
+                "personalities": characters}
         if len(json.dumps(data)) > STATUS_MAX_BYTES:
             data["feed"] = lines[:5]
         return data

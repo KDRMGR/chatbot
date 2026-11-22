@@ -49,7 +49,7 @@ sets them. Signing up must be switched off in the project, so strangers cannot e
 
 ## Commands the panel can send (`kind`)
 `pause`, `resume`, `set_approval`, `set_ai`, `set_proactive`, `approve`, `reject`, `select_stream`, `add_stream`, `update_stream`,
-`remove_stream`, `stream_settings`, `set_topic`, and `say` (streamer/admin; **not switched on yet**: see below).
+`remove_stream`, `stream_settings`, `set_topic` (also for another stream via `target_id`, and `news`), `set_language`, and `say` (streamer/admin; voice replies are switched on).
 
 ## Hold-to-speak (built; the microphone itself is untested)
 The streamer holds the button on the page and speaks; the browser's speech recognition turns it into text, which is sent as a `say`
@@ -75,7 +75,7 @@ tab only). `web/config.js` holds the project address and the **publishable** key
 | Address | File | Who | What it shows |
 |---|---|---|---|
 | `/` | `web/index.html` | everyone | sign-in, "forgot password", and the "choose a new password" step of an email link. After signing in you are sent to the page for your role. |
-| `/admin` | `web/admin.html` | **admin** only | status, pause/resume and switches, replies waiting for approval, live chat, the stream list, the stream topic, your recent commands, and the talk box. |
+| `/admin` | `web/admin.html` | **admin** only | **Header:** which stream the bot is in (LIVE/offline), its topic, the reply-language menu, pause/resume. **Which stream?:** one row per stream (live dot, its topic, "Use this stream" in one click, "Edit topic"), an "Automatic" row, and one box to paste a Kick or YouTube link. **What is the stream about?:** the topic of the chosen stream (game, search words, the Wikipedia note, the news headlines and where they came from, "Refresh headlines", your own note). Then status, switches, replies waiting for approval, live chat (with who wrote each reply), the talk box, the five characters, and your recent commands. |
 | `/streamer` | `web/streamer.html` | **streamer**, and also admin | one big **Hold to speak** button, what the bot heard, "your conversation with the bot" (what you said and what it answered), status and live chat. Nothing else to touch. |
 
 A streamer who opens `/admin` is sent to `/streamer`; a signed-in person who opens `/` is sent to their page; anyone not signed in
