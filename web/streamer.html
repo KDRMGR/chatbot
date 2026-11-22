@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>StealthBot Talk</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body data-page="streamer">
+  <header class="top">
+    <h1>StealthBot <span class="badge streamer">STREAMER</span></h1>
+    <div class="top-right" id="top-right">
+      <span class="pill" id="pill-bot">Bot: checking</span>
+      <span class="who" id="who"></span>
+      <button type="button" class="quiet" id="btn-signout">Sign out</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <!-- The streamer's screen: one big button, what the bot heard, and what it answered. Nothing else to touch. -->
+    <section class="card talk-big" id="card-talk">
+      <h2>Talk to the bot</h2>
+      <p class="hint" id="talk-note"></p>
+      <button type="button" id="btn-hold" class="hold big" disabled>Hold to speak</button>
+      <div class="row center">
+        <label class="inline"><span>Language</span>
+          <select id="talk-lang">
+            <option value="hi-IN">Hindi (hi-IN)</option>
+            <option value="en-IN" selected>English, India (en-IN)</option>
+            <option value="en-US">English, US (en-US)</option>
+          </select></label>
+        <label class="switch-row"><input type="checkbox" id="chk-autosend" checked><span>Bot answers as soon as I let go</span></label>
+      </div>
+      <label class="field"><span>What the bot heard (you can type here too, or fix it and press Send)</span>
+        <textarea id="talk-text" rows="2" maxlength="500"></textarea></label>
+      <div class="row">
+        <button type="button" id="btn-send-say" disabled>Send</button>
+        <button type="button" class="quiet" id="btn-clear-say">Clear</button>
+      </div>
+      <p class="hint" id="talk-msg" role="status"></p>
+    </section>
+
+    <section class="card" id="card-convo">
+      <h2>Your conversation with the bot</h2>
+      <div id="convo-body"></div>
+    </section>
+
+    <div class="grid">
+      <section class="card" id="card-status">
+        <h2>Status</h2>
+        <div id="status-body"></div>
+      </section>
+
+      <section class="card" id="card-feed">
+        <h2>Live chat</h2>
+        <div id="feed-body" class="feed"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="/config.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

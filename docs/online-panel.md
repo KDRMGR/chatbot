@@ -71,6 +71,20 @@ framing, no referrer, microphone only for the site). Text from the database is p
 an injected `<img onerror>` line). The only secrets in the browser are the signed-in user's own tokens, kept in `sessionStorage` (this
 tab only). `web/config.js` holds the project address and the **publishable** key, which are public by design.
 
+### Three pages, one per job
+| Address | File | Who | What it shows |
+|---|---|---|---|
+| `/` | `web/index.html` | everyone | sign-in, "forgot password", and the "choose a new password" step of an email link. After signing in you are sent to the page for your role. |
+| `/admin` | `web/admin.html` | **admin** only | status, pause/resume and switches, replies waiting for approval, live chat, the stream list, the stream topic, your recent commands, and the talk box. |
+| `/streamer` | `web/streamer.html` | **streamer**, and also admin | one big **Hold to speak** button, what the bot heard, "your conversation with the bot" (what you said and what it answered), status and live chat. Nothing else to touch. |
+
+A streamer who opens `/admin` is sent to `/streamer`; a signed-in person who opens `/` is sent to their page; anyone not signed in
+who opens `/admin` or `/streamer` is sent to `/`. An account with no row in `profiles` is signed out with "This account has no
+access". **This routing is only convenience**: what a role may actually do is decided by the database policies and again by the bot
+(`ROLE_KINDS`), so typing another address, or editing the page in the browser, gives a streamer nothing extra. Vercel serves the
+extensionless addresses through `cleanUrls` in `web/vercel.json`. All three pages share `web/app.js`, which reads
+`<body data-page="login|admin|streamer">`.
+
 ## Setup
 1. **Done:** schema applied, sign-ups off, bot user created and stored (`scripts\relay_login.py`), relay switched on in `backend\.env`.
 2. **Create the admin and streamer logins in the Supabase dashboard** (supabase.com/dashboard, project `chatbot`):

@@ -1,21 +1,27 @@
 "use strict";
 /* The online panel. No libraries: it talks to Supabase's documented REST endpoints (Auth + PostgREST) with fetch.
+ * Three pages share this file (document.body.dataset.page): "login" (/), "admin" (/admin) and "streamer" (/streamer).
+ * After signing in you are sent to the page for your role; opening the other role's page sends you back. That routing is a
+ * convenience only: what a user may do is decided by the database policies (supabase/schema.sql), not by this file.
  * Rules this file follows: text from the database goes on the page with textContent only (never as markup); the only secrets
- * it holds are the signed-in user's own tokens, kept in sessionStorage (this tab only); the key in config.js is the PUBLIC key.
- * What a user may do is decided by the database policies (supabase/schema.sql); the buttons hidden here are a convenience. */
+ * it holds are the signed-in user's own tokens, kept in sessionStorage (this tab only); the key in config.js is the PUBLIC key. */
 
 const CFG = window.STEALTHBOT_CONFIG || {};
 const BASE = String(CFG.url || "").replace(/\/$/, "");
+const PAGE = document.body.dataset.page || "login";
 const SESSION_KEY = "stealthbot.session";
+const FLASH_KEY = "stealthbot.flash";
 const POLL_MS = 3000;
 const ONLINE_WITHIN_S = 20;
-const $ = (id) => document.getElementById(id);
+// A page only contains the parts of its own role; code for a part that is not on this page finds a harmless detached element.
+const $ = (id) => document.getElementById(id) || document.createElement("div");
 
 let session = null;   // { access_token, refresh_token, expires_at (unix s), user: { id, email } }
 let role = null;      // "admin" | "streamer"
 let latest = null;    // { data, updated_at } from bot_status
 let pollTimer = null;
 const commandLog = [];
+const conversation = []; // the streamer's page: what was said and what the bot answered
 const dirty = new Set(); // form fields the user has edited and not saved: the 3-second refresh must not overwrite them
 
 /* ------------------------------------------------------------------ helpers */
@@ -39,9 +45,10 @@ function clock(iso) {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
-function show(view) {
-  for (const id of ["view-login", "view-password", "view-app"]) $(id).hidden = id !== view;
-  $("top-right").hidden = view === "view-login";
+const pageFor = (r) => (r === "admin" ? "/admin" : "/streamer");
+function go(path) { location.replace(path); }
+function showLoginView(view) {
+  for (const id of ["view-login", "view-password"]) { const n = document.getElementById(id); if (n) n.hidden = id !== view; }
 }
 
 /* ------------------------------------------------------------------ Supabase calls (documented REST endpoints) */
@@ -85,7 +92,19 @@ async function rest(method, path, body, extra) {
   return call(`/rest/v1/${path}`, { method, body, token, extra });
 }
 
-/* ------------------------------------------------------------------ sign in / out, password */
+/* ------------------------------------------------------------------ sign in / out, password, routing by role */
+async function loadRole() {
+  const r = await rest("GET", `profiles?select=role&user_id=eq.${encodeURIComponent(session.user.id)}`);
+  const found = r.ok && Array.isArray(r.data) && r.data[0] ? r.data[0].role : null;
+  return found === "admin" || found === "streamer" ? found : null;
+}
+
+async function routeByRole() {
+  role = await loadRole();
+  if (!role) { await signOut("This account has no access to the panel."); return; }
+  go(pageFor(role));
+}
+
 async function signIn(event) {
   event.preventDefault();
   say("login-msg", "Signing in...", "");
@@ -97,13 +116,13 @@ async function signIn(event) {
     return;
   }
   keep(sessionFrom(r.data));
-  await enterApp();
+  await routeByRole();
 }
 
 async function forgot() {
   const email = $("login-email").value.trim();
   if (!email) { say("login-msg", "Type your email above first.", "error"); return; }
-  await call("/auth/v1/recover", { method: "POST", body: { email }, params: { redirect_to: location.origin + location.pathname } });
+  await call("/auth/v1/recover", { method: "POST", body: { email }, params: { redirect_to: location.origin + "/" } });
   say("login-msg", "If that address has an account, an email with a link to choose a new password is on its way.", "ok");
 }
 
@@ -112,28 +131,28 @@ async function setPassword(event) {
   const a = $("new-password").value, b = $("new-password2").value;
   if (a !== b) { say("password-msg", "The two passwords are not the same.", "error"); return; }
   const r = await call("/auth/v1/user", { method: "PUT", token: await validToken(), body: { password: a } });
-  if (!r.ok) { say("password-msg", (r.data && (r.data.msg || r.data.message)) || "The password was not accepted (at least 12 characters).", "error"); return; }
+  if (!r.ok) { say("password-msg", (r.data && (r.data.msg || r.data.message)) || "The password was not accepted.", "error"); return; }
   $("new-password").value = ""; $("new-password2").value = "";
   say("password-msg", "Password saved.", "ok");
-  await enterApp();
+  await routeByRole();
 }
 
 async function signOut(message) {
   if (session) { try { await call("/auth/v1/logout", { method: "POST", token: session.access_token }); } catch (_) { /* best effort */ } }
   keep(null); role = null; latest = null;
   if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
-  show("view-login");
+  if (PAGE !== "login") {
+    try { if (message) sessionStorage.setItem(FLASH_KEY, message); } catch (_) { /* fine */ }
+    go("/");
+    return;
+  }
+  showLoginView("view-login");
   say("login-msg", message || "", message ? "error" : "");
 }
 
-/* ------------------------------------------------------------------ entering the panel */
-async function enterApp() {
-  const r = await rest("GET", `profiles?select=role&user_id=eq.${encodeURIComponent(session.user.id)}`);
-  role = r.ok && Array.isArray(r.data) && r.data[0] ? r.data[0].role : null;
-  if (role !== "admin" && role !== "streamer") { await signOut("This account has no access to the panel."); return; }
+/* ------------------------------------------------------------------ the admin and streamer pages */
+function startPage() {
   $("who").textContent = `${session.user.email} (${role})`;
-  for (const card of document.querySelectorAll("[data-roles]")) card.hidden = !card.dataset.roles.split(" ").includes(role);
-  show("view-app");
   poll();
 }
 
@@ -183,7 +202,7 @@ function render() {
   pill.className = `pill ${online ? "ok" : "bad"}`;
   pill.textContent = latest ? (online ? "Bot: online" : `Bot: offline (seen ${ago(ageS)} ago)`) : "Bot: no data yet";
   renderStatus(st, online);
-  if (role === "admin") { renderControls(st); renderApprovals(st); renderStreams(st); renderTopic(st); }
+  if (PAGE === "admin") { renderControls(st); renderApprovals(st); renderStreams(st); renderTopic(st); }
   renderFeed(st);
   renderTalk(st, online);
 }
@@ -291,9 +310,19 @@ function renderLog() {
   ])));
 }
 
+function renderConversation() {
+  const body = $("convo-body");
+  if (!conversation.length) { body.replaceChildren(el("p", { class: "hint", text: "Nothing said yet. Hold the button and speak." })); return; }
+  body.replaceChildren(...conversation.map((c) => el("div", { class: "item" }, [
+    el("div", { class: "meta", text: c.time.toLocaleTimeString() }),
+    el("div", {}, [el("b", { text: "You: " }), document.createTextNode(c.said)]),
+    el("div", { class: `reply ${c.ok ? "" : "hint error"}` }, [el("b", { text: "Bot: " }), document.createTextNode(c.answer)]),
+  ])));
+}
+
 /* ------------------------------------------------------------------ talk (hold to speak) */
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-let rec = null, holding = false, heard = "";
+let rec = null, holding = false;
 
 function sayEnabled() { return Boolean(latest && latest.data && latest.data.relay && latest.data.relay.say_enabled); }
 
@@ -312,14 +341,13 @@ function renderTalk(st, online) {
 
 function startHold() {
   if (!SR || holding) return;
-  holding = true; heard = "";
+  holding = true;
   $("btn-hold").classList.add("live");
   rec = new SR();
   rec.lang = $("talk-lang").value; rec.interimResults = true; rec.continuous = true;
   rec.onresult = (e) => {
     let final = "", interim = "";
     for (let i = 0; i < e.results.length; i++) (e.results[i].isFinal ? (final += e.results[i][0].transcript) : (interim += e.results[i][0].transcript));
-    heard = final;
     $("talk-text").value = (final + interim).trim().slice(0, 500);
     renderTalk(null, true);
   };
@@ -355,21 +383,27 @@ async function sendSay() {
   if (!text) return;
   say("talk-msg", "Sending...", "");
   const entry = await send("say", { text, lang: $("talk-lang").value });
-  say("talk-msg", entry.ok ? describeSay(entry.result, "Sent.") : describeSay(entry.result, entry.text), entry.ok ? "ok" : "error");
+  const message = entry.ok ? describeSay(entry.result, "Sent.") : describeSay(entry.result, entry.text);
+  say("talk-msg", message, entry.ok ? "ok" : "error");
+  conversation.unshift({ time: new Date(), said: text, answer: message.replace(/^The bot answered in chat: /, ""), ok: entry.ok });
+  conversation.length = Math.min(conversation.length, 10);
+  renderConversation();
   if (entry.ok) $("talk-text").value = "";
   renderTalk(null, true);
 }
 
 /* ------------------------------------------------------------------ forms and buttons */
+function on(id, event, handler) { document.getElementById(id)?.addEventListener(event, handler); }
+
 function wire() {
-  $("form-login").addEventListener("submit", signIn);
-  $("btn-forgot").addEventListener("click", forgot);
-  $("form-password").addEventListener("submit", setPassword);
-  $("btn-signout").addEventListener("click", () => signOut());
-  $("btn-pause").addEventListener("click", () => send("pause"));
-  $("btn-resume").addEventListener("click", () => send("resume"));
+  on("form-login", "submit", signIn);
+  on("btn-forgot", "click", forgot);
+  on("form-password", "submit", setPassword);
+  on("btn-signout", "click", () => signOut());
+  on("btn-pause", "click", () => send("pause"));
+  on("btn-resume", "click", () => send("resume"));
   for (const [id, kind] of [["chk-approval", "set_approval"], ["chk-ai", "set_ai"], ["chk-proactive", "set_proactive"]]) {
-    $(id).addEventListener("change", async () => {
+    on(id, "change", async () => {
       dirty.add(id);
       const entry = await send(kind, { enabled: $(id).checked });
       dirty.delete(id);
@@ -377,13 +411,13 @@ function wire() {
       render();
     });
   }
-  $("form-add-stream").addEventListener("submit", async (event) => {
+  on("form-add-stream", "submit", async (event) => {
     event.preventDefault();
     const entry = await send("add_stream", { platform: "youtube", ref: $("stream-ref").value });
     say("streams-msg", entry.ok ? "Added." : entry.text, entry.ok ? "ok" : "error");
     if (entry.ok) $("stream-ref").value = "";
   });
-  $("form-topic").addEventListener("submit", async (event) => {
+  on("form-topic", "submit", async (event) => {
     event.preventDefault();
     $("topic-msg").dataset.busy = "1"; say("topic-msg", "Looking it up...", "");
     const entry = await send("set_topic", { game: $("topic-game").value, hint: $("topic-hint").value, lookup: true });
@@ -391,45 +425,57 @@ function wire() {
     delete $("topic-msg").dataset.busy;
     say("topic-msg", entry.ok ? "Saved." : entry.text, entry.ok ? "ok" : "error");
   });
-  $("btn-topic-notes").addEventListener("click", async () => {
+  on("btn-topic-notes", "click", async () => {
     const entry = await send("set_topic", { notes: $("topic-notes").value });
     dirty.delete("topic-notes");
     say("topic-msg", entry.ok ? "Saved your notes." : entry.text, entry.ok ? "ok" : "error");
   });
-  for (const id of ["topic-game", "topic-hint", "topic-notes"]) $(id).addEventListener("input", () => dirty.add(id));
-  const hold = $("btn-hold");
-  hold.addEventListener("pointerdown", (e) => { e.preventDefault(); hold.setPointerCapture(e.pointerId); startHold(); });
-  for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) hold.addEventListener(ev, endHold);
-  hold.addEventListener("keydown", (e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); startHold(); } });
-  hold.addEventListener("keyup", (e) => { if (e.key === " " || e.key === "Enter") endHold(); });
+  for (const id of ["topic-game", "topic-hint", "topic-notes"]) on(id, "input", () => dirty.add(id));
+  const hold = document.getElementById("btn-hold");
+  if (hold) {
+    hold.addEventListener("pointerdown", (e) => { e.preventDefault(); hold.setPointerCapture(e.pointerId); startHold(); });
+    for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) hold.addEventListener(ev, endHold);
+    hold.addEventListener("keydown", (e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); startHold(); } });
+    hold.addEventListener("keyup", (e) => { if (e.key === " " || e.key === "Enter") endHold(); });
+  }
   window.addEventListener("blur", endHold);
-  $("btn-send-say").addEventListener("click", sendSay);
-  $("btn-clear-say").addEventListener("click", () => { $("talk-text").value = ""; renderTalk(null, true); });
-  $("talk-text").addEventListener("input", () => renderTalk(null, true));
+  on("btn-send-say", "click", sendSay);
+  on("btn-clear-say", "click", () => { $("talk-text").value = ""; renderTalk(null, true); });
+  on("talk-text", "input", () => renderTalk(null, true));
 }
 
 /* ------------------------------------------------------------------ start */
 async function boot() {
   wire();
-  renderLog();
-  if (!BASE || !CFG.key || CFG.key.includes("GOES_HERE")) { show("view-login"); say("login-msg", "This page is not configured yet (config.js).", "error"); return; }
-  const hash = new URLSearchParams(location.hash.slice(1));
-  if (location.hash) history.replaceState(null, "", location.pathname + location.search);  // the link's tokens must not stay in the address bar
-  if (hash.get("error_description")) { show("view-login"); say("login-msg", hash.get("error_description").replace(/\+/g, " "), "error"); return; }
-  if (hash.get("access_token")) {  // an invite or password-reset link from the email
-    const data = { access_token: hash.get("access_token"), refresh_token: hash.get("refresh_token"), expires_in: hash.get("expires_in") };
-    const me = await call("/auth/v1/user", { token: data.access_token });
-    if (me.ok && me.data) {
-      keep(sessionFrom(data, { id: me.data.id, email: me.data.email }));
-      if (["recovery", "invite", "signup"].includes(hash.get("type"))) { show("view-password"); return; }
-      await enterApp(); return;
+  if (PAGE !== "login") { renderLog(); renderConversation(); }
+  const configured = BASE && CFG.key && !String(CFG.key).includes("GOES_HERE");
+  if (PAGE === "login") {
+    showLoginView("view-login");
+    try { const flash = sessionStorage.getItem(FLASH_KEY); if (flash) { sessionStorage.removeItem(FLASH_KEY); say("login-msg", flash, "error"); } } catch (_) { /* fine */ }
+    if (!configured) { say("login-msg", "This page is not configured yet (config.js).", "error"); return; }
+    const hash = new URLSearchParams(location.hash.slice(1));
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);  // the link's tokens must not stay in the address bar
+    if (hash.get("error_description")) { say("login-msg", hash.get("error_description").replace(/\+/g, " "), "error"); return; }
+    if (hash.get("access_token")) {  // an invite or password-reset link from the email
+      const data = { access_token: hash.get("access_token"), refresh_token: hash.get("refresh_token"), expires_in: hash.get("expires_in") };
+      const me = await call("/auth/v1/user", { token: data.access_token });
+      if (me.ok && me.data) {
+        keep(sessionFrom(data, { id: me.data.id, email: me.data.email }));
+        if (["recovery", "invite", "signup"].includes(hash.get("type"))) { showLoginView("view-password"); return; }
+        await routeByRole(); return;
+      }
     }
-  }
+  } else if (!configured) { go("/"); return; }
+
   try { session = JSON.parse(sessionStorage.getItem(SESSION_KEY) || "null"); } catch (_) { session = null; }
-  if (session) { try { await enterApp(); return; } catch (_) { /* fall through to the sign-in page */ } }
-  show("view-login");
+  if (!session) { if (PAGE !== "login") go("/"); return; }
+  try { role = await loadRole(); } catch (_) { return; }  // validToken already sent the user back to sign in
+  if (!role) { await signOut("This account has no access to the panel."); return; }
+  if (PAGE === "login") { go(pageFor(role)); return; }
+  if (PAGE === "admin" && role !== "admin") { go(pageFor(role)); return; }   // a streamer cannot use the admin page
+  startPage();                                                            // an admin may also open the streamer's talk screen
 }
 
-// A link from an email opened in a tab that already shows the panel only changes the hash: start over with a full load.
+// A link from an email opened in a tab that already shows a page only changes the hash: start over with a full load.
 window.addEventListener("hashchange", () => { if (location.hash.length > 1) location.reload(); });
 boot();

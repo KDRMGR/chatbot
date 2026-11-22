@@ -4,21 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <title>StealthBot Online</title>
-  <link rel="stylesheet" href="style.css">
+  <title>StealthBot Online: sign in</title>
+  <link rel="stylesheet" href="/style.css">
 </head>
-<body>
+<body data-page="login">
   <header class="top">
     <h1>StealthBot</h1>
-    <div class="top-right" id="top-right" hidden>
-      <span class="pill" id="pill-bot">Bot: checking</span>
-      <span class="who" id="who"></span>
-      <button type="button" class="quiet" id="btn-signout">Sign out</button>
-    </div>
   </header>
 
   <main>
-    <!-- ================================================== sign in -->
+    <!-- ================================================== sign in; the page then sends you to /admin or /streamer by your role -->
     <section class="card narrow" id="view-login">
       <h2>Sign in</h2>
       <form id="form-login">
@@ -28,106 +23,24 @@
         <button type="button" class="quiet" id="btn-forgot">Forgot password</button>
       </form>
       <p class="hint" id="login-msg" role="status"></p>
-      <p class="hint">Accounts are created by the owner; there is no sign-up.</p>
+      <p class="hint">Accounts are created by the owner; there is no sign-up. Admins go to the control panel, streamers to the talk screen.</p>
     </section>
 
     <!-- ================================================== choose a password (invite / recovery link) -->
     <section class="card narrow" id="view-password" hidden>
       <h2>Choose a password</h2>
       <form id="form-password">
-        <label class="field"><span>New password (at least 12 characters)</span>
-          <input type="password" id="new-password" autocomplete="new-password" minlength="12" required></label>
+        <label class="field"><span>New password</span>
+          <input type="password" id="new-password" autocomplete="new-password" required></label>
         <label class="field"><span>Repeat it</span>
-          <input type="password" id="new-password2" autocomplete="new-password" minlength="12" required></label>
+          <input type="password" id="new-password2" autocomplete="new-password" required></label>
         <button type="submit">Save password</button>
       </form>
       <p class="hint" id="password-msg" role="status"></p>
     </section>
-
-    <!-- ================================================== the panel -->
-    <div id="view-app" hidden>
-      <div class="grid">
-        <section class="card" id="card-status">
-          <h2>Status</h2>
-          <div id="status-body"></div>
-        </section>
-
-        <section class="card" id="card-controls" data-roles="admin">
-          <h2>Controls</h2>
-          <div class="row">
-            <button type="button" id="btn-pause" class="danger">Pause all replies</button>
-            <button type="button" id="btn-resume">Resume replies</button>
-          </div>
-          <label class="switch-row"><input type="checkbox" id="chk-approval"><span>Ask me before anything is sent</span></label>
-          <label class="switch-row"><input type="checkbox" id="chk-ai"><span>AI replies on</span></label>
-          <label class="switch-row"><input type="checkbox" id="chk-proactive"><span>Bot may start conversations</span></label>
-          <p class="hint" id="controls-msg" role="status"></p>
-        </section>
-
-        <section class="card" id="card-talk" data-roles="admin streamer">
-          <h2>Talk</h2>
-          <p class="hint" id="talk-note"></p>
-          <div class="row">
-            <button type="button" id="btn-hold" class="hold" disabled>Hold to speak</button>
-            <label class="inline"><span>Language</span>
-              <select id="talk-lang">
-                <option value="hi-IN">Hindi (hi-IN)</option>
-                <option value="en-IN" selected>English, India (en-IN)</option>
-                <option value="en-US">English, US (en-US)</option>
-              </select></label>
-          </div>
-          <label class="field"><span>What the bot heard (you can type here too, or fix it and press Send)</span>
-            <textarea id="talk-text" rows="3" maxlength="500"></textarea></label>
-          <label class="switch-row"><input type="checkbox" id="chk-autosend" checked><span>Let the bot answer as soon as I let go</span></label>
-          <div class="row">
-            <button type="button" id="btn-send-say" disabled>Send</button>
-            <button type="button" class="quiet" id="btn-clear-say">Clear</button>
-          </div>
-          <p class="hint" id="talk-msg" role="status"></p>
-        </section>
-
-        <section class="card wide" id="card-approvals" data-roles="admin">
-          <h2>Replies waiting for approval</h2>
-          <div id="approvals-body"></div>
-        </section>
-
-        <section class="card wide" id="card-feed" data-roles="admin streamer">
-          <h2>Live chat</h2>
-          <div id="feed-body" class="feed"></div>
-        </section>
-
-        <section class="card" id="card-streams" data-roles="admin">
-          <h2>Streams</h2>
-          <div id="streams-body"></div>
-          <form id="form-add-stream">
-            <label class="field"><span>Add a YouTube video or channel link</span>
-              <input type="text" id="stream-ref" autocomplete="off" placeholder="youtu.be/... or youtube.com/channel/UC..."></label>
-            <button type="submit">Add</button>
-          </form>
-          <p class="hint" id="streams-msg" role="status"></p>
-        </section>
-
-        <section class="card" id="card-topic" data-roles="admin">
-          <h2>What the stream is about</h2>
-          <form id="form-topic">
-            <label class="field"><span>Game or show</span><input type="text" id="topic-game" maxlength="60" autocomplete="off"></label>
-            <label class="field"><span>Search words (optional)</span><input type="text" id="topic-hint" maxlength="80" autocomplete="off"></label>
-            <button type="submit">Save and look it up</button>
-          </form>
-          <label class="field"><span>What the bot knows (edit if wrong)</span><textarea id="topic-notes" rows="4" maxlength="1000"></textarea></label>
-          <button type="button" id="btn-topic-notes">Save my own notes</button>
-          <p class="hint" id="topic-msg" role="status"></p>
-        </section>
-
-        <section class="card" id="card-log">
-          <h2>Your recent commands</h2>
-          <div id="log-body"></div>
-        </section>
-      </div>
-    </div>
   </main>
 
-  <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="/config.js"></script>
+  <script src="/app.js"></script>
 </body>
 </html>

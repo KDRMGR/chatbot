@@ -52,5 +52,15 @@ button.hold.live { background: var(--ok); border-color: var(--ok); color: #fff; 
 .feed .line { padding: 0.25rem 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 .feed .line.bot { color: var(--accent); }
 .feed .t { color: var(--muted); font-size: 0.75rem; margin-right: 0.5rem; }
+.badge { font-size: 0.7rem; font-weight: 650; letter-spacing: 0.05em; padding: 0.1rem 0.5rem; border-radius: 99px; background: var(--accent); color: #fff; vertical-align: middle; }
+.badge.streamer { background: var(--ok); }
+.quiet-link { color: var(--muted); font-size: 0.85rem; }
+.stage { max-width: 46rem; display: grid; gap: 1rem; }
+.stage .grid { grid-template-columns: 1fr; }
+.talk-big { text-align: center; }
+.talk-big .field, .talk-big .field > span, .talk-big .inline > span { text-align: left; }
+button.hold.big { width: 100%; min-height: 9rem; font-size: 1.6rem; border-radius: 16px; margin: 0.6rem 0 0.4rem; }
+.row.center { justify-content: center; align-items: center; gap: 1.2rem; }
+.item .reply.hint { margin-top: 0.4rem; }
 .dot { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--muted); margin-right: 0.4rem; }
 .dot.live { background: var(--ok); } .dot.offline { background: var(--bad); }
