@@ -52,6 +52,9 @@ class RecentReplies:
     def all(self) -> list[str]:
         return [t for d in self._by_platform.values() for t in d]
 
+    def clear(self) -> None:
+        self._by_platform.clear()
+
     def last(self, n: int = 3) -> list[str]:
         return self.all()[-n:]
 
@@ -99,6 +102,20 @@ def fit_to_limit(text: str, limit: int) -> str:
     return cut.rstrip(",;:- ") + "…"
 
 
+# Everyday Hindi words that written in English letters (Hinglish) give a message away. When the language is English a reply that
+# contains one is not sent (the small model drifts back into Hinglish when the chat and its own earlier messages are in it).
+HINGLISH_STRONG = frozenset("yaar yar arre arey bhai bhaiya kya hai hain nahi nahin mast aapko aapka tumhare tumhara kaise kaun bohot bahut accha achha sahi dekho bolo chalo".split())
+HINGLISH_WEAK = frozenset("toh bhi mein aap tum ye yeh woh abhi raha rahe rahi hoga hogi wala wali karo kar liye lekin par".split())
+
+
+def looks_hinglish(text: str) -> bool:
+    """True if the text is Hindi written in English letters (or clearly mixed with it): one strong marker word, or two weak ones."""
+    words = re.findall(r"[a-z]+", text.casefold())
+    strong = sum(1 for w in words if w in HINGLISH_STRONG)
+    weak = sum(1 for w in words if w in HINGLISH_WEAK)
+    return strong >= 1 or weak >= 2
+
+
 def foreign_script(text: str, *, allow_devanagari: bool) -> bool:
     """True if the text contains letters of a script the bot's safety word lists do not understand. Those lists cover English, Hinglish
     and Devanagari Hindi, so a reply in Bengali, Arabic, Chinese or Cyrillic could not be checked for abuse: it is not sent. (Small
@@ -127,6 +144,7 @@ def clean_reply(
     similarity_threshold: float = 0.85,
     max_emoji: int = 2,
     allow_devanagari: bool = True,
+    allow_hinglish: bool = True,
 ) -> GuardResult:
     text = raw or ""
     low = text.lower()
@@ -146,6 +164,8 @@ def clean_reply(
         return GuardResult(None, "link")
     if foreign_script(text, allow_devanagari=allow_devanagari):
         return GuardResult(None, "script")
+    if not allow_hinglish and looks_hinglish(text):
+        return GuardResult(None, "language")
     if text[0] in "!/":
         return GuardResult(None, "command_like")
     low = text.lower()

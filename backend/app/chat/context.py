@@ -49,6 +49,12 @@ class SessionContext:
         """The latest things viewers (not the bot) said, as 'name: text'."""
         return [f"{name}: {text}" for name, text, is_bot in list(self._chat)[::-1] if not is_bot][:n]
 
+    def forget_bot_lines(self) -> None:
+        """Drop the bot's own earlier lines from the recent chat (after a language change it would copy them)."""
+        kept = [line for line in self._chat if not line[2]]
+        self._chat.clear()
+        self._chat.extend(kept)
+
     def reset_chat(self) -> None:
         """Another stream: its chat has nothing to do with what was said in the previous one."""
         self._chat.clear()

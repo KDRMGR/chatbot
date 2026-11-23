@@ -644,6 +644,8 @@ async def language_change(request: Request) -> JSONResponse:
     if extra or not isinstance(value, str) or value not in LANGUAGE_NAMES:
         raise ValidationFailed([{"loc": ["language"], "msg": f"must be one of {', '.join(LANGUAGE_NAMES)}"}])
     c.settings.reply_language = value
+    c.generator.forget_recent()  # earlier replies and cached answers are in the old language: the model would copy them
+    c.context.forget_bot_lines()
     saved = await _save_json(c, "reply.language", value)
     return JSONResponse({**_language_payload(c), "saved": saved})
 

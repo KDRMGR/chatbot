@@ -119,7 +119,7 @@ class Settings:
     vision_interval_s: float = 30.0
     vision_window: str = ""  # screen only: part of a window's title; empty = the whole primary screen (which shows everything you have open)
     vision_max_width: int = 960  # the picture is shrunk to about this width before it is looked at (it never leaves this PC)
-    vision_num_predict: int = 60
+    vision_num_predict: int = 80
     obs_host: str = "127.0.0.1"
     obs_port: int = 4455
     # --- what people online are saying (see knowledge/social.py). X and Instagram cannot be read legitimately and are not offered.

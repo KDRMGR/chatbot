@@ -557,7 +557,7 @@ async def test_what_the_eyes_see_is_in_the_prompt_of_the_next_reply(make_app_cli
     out = await client.post("/api/vision/look")
     assert out.status_code == 200 and out.json()["new_caption"] == "A car chase through a neon city at night." and out.json()["state"] == "seeing"
     vision_call = fake_ollama.real_calls[-1]
-    assert vision_call["model"] == "primary-model" and vision_call["messages"][0]["images"] and "ONE short sentence" in vision_call["messages"][0]["content"]
+    assert vision_call["model"] == "primary-model" and vision_call["messages"][0]["images"] and "ONE sentence" in vision_call["messages"][0]["content"]
     fake_ollama.reply = "Wow that chase looks wild, who is winning?"
     await c.processor.submit(chat("hello everyone", "v1"))
     assert "On screen right now" in last_prompt(fake_ollama) and "A car chase through a neon city at night" in last_prompt(fake_ollama)

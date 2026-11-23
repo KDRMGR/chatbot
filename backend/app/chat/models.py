@@ -56,6 +56,7 @@ class ChatMessage:
     event_type: EventType = EventType.MESSAGE
     is_bot_self: bool = False  # echo of our own message coming back from the platform: must be ignored
     is_streamer: bool = False
+    voice_lang: str = ""  # the language the streamer spoke in (the microphone setting, for example en-IN or hi-IN)
     via_voice: bool = False  # the streamer SAID this (hold-to-speak, turned into text): it never appeared in the platform's chat
     amount: str | None = None  # donation amount text, display only
 

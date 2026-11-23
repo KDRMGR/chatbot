@@ -38,8 +38,8 @@ def test_four_languages_exist_and_english_stays_the_default(tmp_path):
 
 def test_every_language_gets_its_own_rule_and_none_of_them_can_drop_the_safety_rules(tmp_path):
     prompts = {lang: PromptManager(Settings(state_dir=tmp_path, reply_language=lang)).system_prompt(PROFILE, "BB20") for lang in REPLY_LANGUAGES}
-    safety = prompts["english"].split("\n\nYour personality")[0]
-    assert "Language:" not in prompts["english"]
+    safety = prompts["english"].split("\n- Language:")[0]
+    assert "write in English only" in prompts["english"] and "no yaar, bhai, arre" in prompts["english"]
     assert HINGLISH_RULE in prompts["hinglish"] and "NEVER use Devanagari" in prompts["hinglish"]
     assert HINDI_RULE in prompts["hindi"] and "Devanagari script" in prompts["hindi"] and "NEVER use Devanagari" not in prompts["hindi"]
     assert AUTO_RULE in prompts["auto"] and "same language" in prompts["auto"] and "viewer message" in prompts["auto"]

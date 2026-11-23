@@ -39,7 +39,7 @@ def make_voice_handler(container: Any):
         name = container.settings.streamer_name
         msg = ChatMessage(
             platform=platform, viewer_id="voice-" + (re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "streamer"),
-            username=f"{name} (voice)", message=text, message_id=f"voice-{uuid.uuid4().hex}", is_streamer=True, via_voice=True,
+            username=f"{name} (voice)", message=text, message_id=f"voice-{uuid.uuid4().hex}", is_streamer=True, via_voice=True, voice_lang=str(ctx.get("lang") or "")[:10],
         )
         try:
             result = await container.processor.submit(msg, wait=True, timeout=ANSWER_TIMEOUT_S)

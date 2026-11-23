@@ -28,13 +28,21 @@ logger = logging.getLogger(__name__)
 
 SOURCES = ("off", "obs", "screen")
 CAPTION_PROMPT = (
-    "This is a screenshot of a live stream. In ONE short sentence (at most 25 words) say what is happening on screen: the game or "
-    "scene and the action. Describe only what you can actually see. Do not read out any text, usernames, numbers, links or personal "
-    "information that appears in the picture. If you cannot tell what it shows, answer exactly: unclear"
+    "This is a frame from a live stream{about}. Describe what is happening in ONE sentence of at most 30 words: what the player or the "
+    "people on screen are doing, where they are, and anything notable (vehicles, people, weapons, a mission marker, danger). If a person "
+    "is visible in a small corner camera, that is the streamer: say in a few words how they look (focused, laughing, bored). Describe "
+    "only what you can actually see. Do not read out text, usernames, numbers, links or personal information. If you cannot tell what "
+    "it shows, answer exactly: unclear"
 )
+
+
+def caption_prompt(topic: str = "") -> str:
+    """The question put to the vision model. Telling it the game or show makes a small model far more specific."""
+    topic = " ".join(str(topic or "").split())[:60]
+    return CAPTION_PROMPT.format(about=f" of {topic}" if topic else "")
 _LEAD = re.compile(r"^\s*(?:the|this)\s+(?:screenshot|image|picture|screen)\s+(?:shows|depicts|displays|is of|captures)\s*[:,]?\s*", re.I)
 _WORDS = re.compile(r"[a-z0-9]{3,}")
-MAX_CAPTION_CHARS = 180
+MAX_CAPTION_CHARS = 230
 MAX_BACKOFF_S = 300.0
 
 
@@ -134,7 +142,7 @@ class VisionService:
             return None  # a reply is being written: the viewer comes first
         try:
             image = await self._picture()
-            text = await self._models.look(image, CAPTION_PROMPT, num_predict=self._s.vision_num_predict)
+            text = await self._models.look(image, caption_prompt(getattr(self._ctx, "game", "")), num_predict=self._s.vision_num_predict)
         except (CaptureError, ObsError) as exc:
             self._fail(str(exc))
             return None

@@ -59,7 +59,12 @@ AUTO_RULE = (
     "other script: if the viewer writes in a language you cannot write that way, answer in simple English."
 )
 
-LANGUAGE_RULES = {"hinglish": HINGLISH_RULE, "hindi": HINDI_RULE, "auto": AUTO_RULE}
+ENGLISH_RULE = (
+    "- Language: write in English only. Do not use Hindi words or Hindi slang (no yaar, bhai, arre, hai, kya, mast, nahi), even if the chat or "
+    "your earlier messages did. Plain, friendly, natural English."
+)
+
+LANGUAGE_RULES = {"english": ENGLISH_RULE, "hinglish": HINGLISH_RULE, "hindi": HINDI_RULE, "auto": AUTO_RULE}
 
 
 PROACTIVE_CATEGORIES = {Category.PROACTIVE_QUIET, Category.PROACTIVE_GENERAL, Category.PROACTIVE_QUIZ, Category.PROACTIVE_HYPE}
@@ -82,7 +87,7 @@ class PromptManager:
     def build(
         self, *, profile: PersonalityProfile, category: Category, username: str | None, message: str | None,
         context_text: str, game: str, avoid: list[str], is_new_viewer: bool = False, retry_hint: str | None = None,
-        is_streamer: bool = False, is_voice: bool = False, viewer_note: str | None = None,
+        is_streamer: bool = False, is_voice: bool = False, viewer_note: str | None = None, speech_lang: str = "",
         liked: list[str] | None = None, disliked: list[str] | None = None, angle: str | None = None,
     ) -> list[dict[str, str]]:
         parts = [f"Stream context:\n{context_text}", "", TASK_HINTS.get(category, TASK_HINTS[Category.GENERAL])]
@@ -91,6 +96,10 @@ class PromptManager:
                          "recognition wrote it down, so it may contain small mistakes). Answer in the chat to what they said, as "
                          "part of an ongoing conversation with the viewers. Do not repeat their words back and do not welcome "
                          "them; speak to them and the chat naturally.")
+            if speech_lang.lower().startswith("en"):
+                parts.append("They spoke English: answer in English only (no Hindi words), whatever language the chat uses.")
+            elif speech_lang.lower().startswith("hi"):
+                parts.append("They spoke Hindi: answer in the same everyday Hindi/Hinglish they used.")
         elif is_streamer:
             parts.append(f"This message is from the streamer, {self._s.streamer_name}, in their own chat: answer them directly "
                          "and warmly. Never welcome them to their own stream or treat them as a new viewer.")

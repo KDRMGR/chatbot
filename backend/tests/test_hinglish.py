@@ -38,9 +38,9 @@ def test_the_prompt_asks_for_hinglish_only_when_switched_on_and_forbids_devanaga
     profile = PersonalityProfile.from_row(default_personality_rows()[0])
     english = PromptManager(Settings(state_dir=tmp_path)).system_prompt(profile, "BB20")
     hinglish = PromptManager(Settings(state_dir=tmp_path, reply_language="hinglish")).system_prompt(profile, "BB20")
-    assert "Hinglish" not in english
+    assert "Hinglish" not in english and "English only" in english  # English is an instruction now, not an absence
     assert HINGLISH_RULE in hinglish and "NEVER use Devanagari" in hinglish and "no swearing" in hinglish
-    assert hinglish.startswith(english.split("\n\nYour personality")[0])  # the safety rules are all still there, first
+    assert hinglish.startswith(english.split("\n- Language:")[0])  # the safety rules are all still there, first
     assert "Never include links" in hinglish and "untrusted" in hinglish
 
 
