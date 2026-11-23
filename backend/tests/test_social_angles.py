@@ -29,13 +29,13 @@ def toot(text: str, **kw) -> dict[str, Any]:
 
 
 MASTODON = [
-    toot('<p><span class="h-card"><a href="https://x.example/@a">@a</a></span> Salman was SO angry in the weekend ka vaar episode tonight! <a href="https://evil.example/x">https://evil.example/x</a> #BB20</p>'),
+    toot('<p><span class="h-card"><a href="https://x.example/@a">@a</a></span> Salman was SO angry in the Bigg Boss weekend ka vaar episode tonight! <a href="https://evil.example/x">https://evil.example/x</a> #BB20</p>'),
     toot("<p>Nsfw looking thing that is marked sensitive and long enough to pass</p>", sensitive=True),
     toot("<p>Hidden behind a content warning but otherwise long enough to count</p>", spoiler_text="spoilers"),
     toot("<p>too short</p>"),
     toot("<p>இது ஒரு நீண்ட தமிழ் இடுகை, ஆனால் இது ஆங்கிலம் அல்ல</p>"),
-    toot("<p>Honestly the contestants this season are the most dramatic bunch in years</p>"),
-    toot("<p>Third usable post that should be cut off by the limit of two per source</p>"),
+    toot("<p>Honestly the Bigg Boss contestants this season are the most dramatic bunch in years</p>"),
+    toot("<p>Third usable Bigg Boss post that should be cut off by the limit of two per source</p>"),
 ]
 
 
@@ -108,7 +108,7 @@ def make(sources=("mastodon", "trends"), creds=None, net: Net | None = None, **k
 # ---------------------------------------------------------------------------- text from strangers
 def test_a_post_becomes_one_clean_line():
     out = post_text(MASTODON[0]["content"])
-    assert out.startswith("Salman was SO angry") and "http" not in out and "@a" not in out and "#BB20" not in out and "<" not in out and len(out) <= 110
+    assert out.startswith("Salman was SO angry") and "http" not in out and "@a" not in out and "#BB20" not in out and "<" not in out and "evil" not in out and len(out) <= 110
     assert post_text("<p>a &amp; b &lt;script&gt; </p>") == "a & b script"
     assert usable("A perfectly normal English sentence about the show") and not usable("short") and not usable("இது ஒரு நீண்ட தமிழ் இடுகை, ஆனால் ஆங்கிலம் அல்ல")
     assert usable("यह एक बहुत अच्छा एपिसोड था आज रात को")  # Devanagari is fine: the safety lists cover it
@@ -123,7 +123,7 @@ async def test_mastodon_posts_are_cleaned_and_only_safe_ones_kept():
     r = make(sources=("mastodon",))
     await r.social.refresh()
     texts = [i["text"] for i in r.social.items]
-    assert len(texts) == 2 and texts[0].startswith("Salman was SO angry") and texts[1].startswith("Honestly the contestants")
+    assert len(texts) == 2 and texts[0].startswith("Salman was SO angry") and texts[1].startswith("Honestly the Bigg Boss contestants")
     assert all(i["source"] == "Mastodon" for i in r.social.items)
     req = r.net.requests[0]
     assert req.url.path == "/api/v1/timelines/tag/bb20" and req.url.params["limit"] == "12" and req.headers["user-agent"].startswith("StealthBot/1.0")
@@ -145,23 +145,34 @@ async def test_trends_put_what_matches_the_topic_first_and_drop_other_scripts():
     r = make(sources=("trends",))
     await r.social.refresh()
     texts = [i["text"] for i in r.social.items]
-    assert texts[0] == "bigg boss 20 (50K+ searches): Bigg Boss 20: Salman Khan slams Mahhi in the weekend episode (Times of India)"
-    assert all("பாகிஸ்தான்" not in t for t in texts) and len(texts) <= 2
+    assert texts == ["bigg boss 20 (50K+ searches): Bigg Boss 20: Salman Khan slams Mahhi in the weekend episode (Times of India)"]
     assert all(i["source"] == "Trending in India" for i in r.social.items)
 
 
-async def test_a_trend_in_another_script_is_never_used_even_when_it_is_the_first_one_on_the_list():
+async def test_a_trend_that_has_nothing_to_do_with_the_stream_is_not_brought_up():
     r = make(sources=("trends",))
     r.net.trends = trends_xml([("பாகிஸ்தான் ஏ கிரிக்கெட் அணி", "200+", []), ("nasdaq futures", "200+", [("Stock futures rebound", "CNBC")])])
     await r.social.refresh()
-    assert [i["text"] for i in r.social.items] == ["nasdaq futures (200+ searches)"]
+    assert r.social.items == [] and r.social.status["trends"] == "ok (nothing new)"
 
 
-async def test_with_nothing_on_topic_one_general_trend_is_used():
+async def test_a_topical_trend_in_another_script_is_never_used():
     r = make(sources=("trends",))
-    r.net.trends = trends_xml([("nasdaq futures", "200+", [("Stock futures rebound", "CNBC")]), ("india vs australia", "20K+", [])])
+    r.net.trends = trends_xml([("பிக் பாஸ் bigg boss 20", "200+", []), ("bigg boss 20 eviction", "5K+", [])])
     await r.social.refresh()
-    assert [i["text"] for i in r.social.items] == ["nasdaq futures (200+ searches)"]
+    assert [i["text"] for i in r.social.items] == ["bigg boss 20 eviction (5K+ searches)"]
+
+
+async def test_mastodon_posts_must_use_the_topics_words_and_links_split_by_markup_are_removed():
+    r = make(sources=("mastodon",))
+    r.net.mastodon = [
+        toot("<p>Kaycee Clark defeated Tyler Crispen to win the 20th season of the American show last night <a href=\"x\">#BB20</a></p>"),
+        toot('<p>Salman Khan announced Rohit Shetty will host the next Bigg Boss weekend <a href="https://e.example/a"><span class="invisible">https://</span><span class="ellipsis">english.mathrubhumi.c</span><span class="invisible">om/x</span></a></p>'),
+    ]
+    await r.social.refresh()
+    texts = [i["text"] for i in r.social.items]
+    assert texts == ["Salman Khan announced Rohit Shetty will host the next Bigg Boss weekend"]
+    assert all("http" not in t and "mathrubhumi" not in t for t in texts)
 
 
 # ---------------------------------------------------------------------------- Reddit
@@ -239,7 +250,7 @@ async def test_new_items_are_brought_up_once_and_a_new_stream_starts_clean():
     r.clock.t += 120
     await r.social.refresh()  # the same posts again: nothing new to say
     assert r.social.has_new() is False and len(r.social.items) == 2
-    r.net.mastodon = [toot("<p>A brand new post about the show that nobody has seen yet</p>")]
+    r.net.mastodon = [toot("<p>A brand new Bigg Boss post about the show that nobody has seen yet</p>")]
     r.clock.t += 120
     await r.social.refresh()
     assert r.social.has_new() is True

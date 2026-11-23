@@ -2,7 +2,7 @@
 
 Sources (``STEALTHBOT_SOCIAL_SOURCES``, comma separated, default none; each is read-only and uses a public or officially documented route):
   mastodon  recent public posts under the topic's hashtags (``/api/v1/timelines/tag/<tag>``, documented, no account)
-  trends    what India is searching for right now (Google Trends' public daily RSS feed): topical items first, then the top few
+  trends    what India is searching for right now (Google Trends' public daily RSS feed): only items that match the topic
   reddit    posts about the topic, through Reddit's official API with an app-only login (free for personal use; you create a "script"
             app at reddit.com/prefs/apps once and store its id and secret with ``scripts\\reddit_login.py``). Reddit blocks anonymous
             scripted access, so without that login this source says "not set up" and is skipped.
@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 SOURCES = ("mastodon", "trends", "reddit")
 MIN_GAP_S = 60.0
 _TAGS = re.compile(r"<[^>]+>")
+_ANCHOR = re.compile(r"<a\b[^>]*>.*?</a>", re.S | re.I)  # links, @mentions and #hashtags are all anchors in Mastodon HTML
+_SPLIT_URL = re.compile(r"https?:\s*/\s*/\s*\S*", re.I)  # a link whose pieces were separated by markup
 _MENTION = re.compile(r"(?<!\w)[@#]\S+")
 _NS = {"ht": "https://trends.google.com/trending/rss"}
 _FILLER = frozenset("show season hindi tv series game live the and for".split())
@@ -55,8 +57,8 @@ def topic_words(*texts: str) -> list[str]:
 
 def post_text(raw_html: str, limit: int = 110) -> str:
     """A social post as one clean line: no tags, links, @mentions or #hashtags."""
-    text = html.unescape(_TAGS.sub(" ", raw_html or ""))
-    return clean_headline(_MENTION.sub("", text))[:limit].strip()
+    text = html.unescape(_TAGS.sub(" ", _ANCHOR.sub(" ", raw_html or "")))
+    return clean_headline(_SPLIT_URL.sub("", _MENTION.sub("", text)))[:limit].strip()
 
 
 def usable(text: str) -> bool:
@@ -124,7 +126,7 @@ class SocialBuzz:
                 for source in self.sources():
                     try:
                         if source == "mastodon":
-                            got = await self._mastodon(http, tags)
+                            got = await self._mastodon(http, tags, keys)
                         elif source == "trends":
                             got = await self._trends(http, keys)
                         else:
@@ -170,8 +172,10 @@ class SocialBuzz:
         self._last_round = float("-inf")
 
     # ------------------------------------------------------------------ the sources
-    async def _mastodon(self, http: Any, tags: list[str]) -> list[dict[str, str]]:
+    async def _mastodon(self, http: Any, tags: list[str], keys: list[str] | None = None) -> list[dict[str, str]]:
         host = getattr(self._s, "mastodon_instance", "mastodon.social")
+        # A hashtag like #BB20 is shared by unrelated things (Big Brother US). When the topic has real words in it, a post must use one.
+        words = [k for k in (keys or []) if k.isalpha()]
         out: list[dict[str, str]] = []
         for tag in tags[:2]:
             data = await self._topic._get_json(http, f"https://{host}/api/v1/timelines/tag/{tag}", {"limit": "12"}, who="Mastodon")
@@ -179,7 +183,7 @@ class SocialBuzz:
                 if not isinstance(post, dict) or post.get("sensitive") or post.get("spoiler_text"):
                     continue
                 text = post_text(str(post.get("content") or ""))
-                if usable(text):
+                if usable(text) and (not words or any(w in text.casefold() for w in words)):
                     out.append({"source": "Mastodon", "text": text})
             if out:
                 break  # the first hashtag with posts is enough
@@ -189,7 +193,6 @@ class SocialBuzz:
         geo = str(getattr(self._s, "topic_news_region", "IN"))
         body = await self._topic._get_bytes(http, "https://trends.google.com/trending/rss", {"geo": geo}, "Google Trends")
         topical: list[dict[str, str]] = []
-        general: list[dict[str, str]] = []
         for item in ET.fromstring(body).iter("item"):
             title = clean_headline(item.findtext("title") or "")
             traffic = (item.findtext("ht:approx_traffic", namespaces=_NS) or "").strip()
@@ -203,9 +206,7 @@ class SocialBuzz:
             if keys and any(k in haystack for k in keys):
                 detail = f": {news[0][0]}" + (f" ({news[0][1]})" if news[0][1] else "") if news else ""
                 topical.append({"source": "Trending in India", "text": clean_headline(f"{line}{detail}")})
-            else:
-                general.append({"source": "Trending in India", "text": clean_headline(line)})
-        return topical[:2] or general[:1]
+        return topical[:2]  # a trend that has nothing to do with the stream is not worth bringing up
 
     async def _reddit_token(self, http: Any, creds: dict[str, Any]) -> str:
         if self._token and self._clock() < self._token[1] - 60:
