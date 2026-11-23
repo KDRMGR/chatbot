@@ -551,6 +551,7 @@ async def test_a_lookup_problem_does_not_stop_the_answer(make_app_client, fake_o
 async def test_what_the_eyes_see_is_in_the_prompt_of_the_next_reply(make_app_client, fake_ollama):
     client, app, c = await live(make_app_client, fake_ollama)
     c.vision._capture = lambda window, width: b"PNGBYTES"
+    c.vision._should_look = lambda: False  # the background loop must not take the look first: this test asks for one itself
     await c.vision.configure("screen")
     fake_ollama.reply = "A car chase through a neon city at night."
     out = await client.post("/api/vision/look")

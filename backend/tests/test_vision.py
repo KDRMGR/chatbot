@@ -486,3 +486,78 @@ async def test_the_loop_only_looks_when_allowed_and_survives_anything():
         assert len(r.models.calls) >= 1 and all(s == 30 for s in sleeps)
     finally:
         module.asyncio.wait_for = original
+
+
+# ---------------------------------------------------------------------------- a viewer never waits for a look
+class SlowEyes:
+    """An Ollama whose picture requests take long (a NEW picture takes several seconds on the real card) but whose text replies are quick."""
+
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+        self.cancelled = False
+        self.calls: list[bool] = []
+
+    async def handler(self, request):
+        import httpx
+
+        body = json.loads(request.content)
+        has_image = bool(body["messages"][0].get("images"))
+        self.calls.append(has_image)
+        if has_image:
+            self.started.set()
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                self.cancelled = True
+                raise
+        return httpx.Response(200, json={"message": {"role": "assistant", "content": "A boss fight in a dark cave."}, "eval_count": 5,
+                                         "eval_duration": 100_000_000, "done_reason": "stop"})
+
+
+def slow_manager(tmp_path):
+    import httpx
+
+    from app.ai.model_manager import ModelManager
+    from app.ai.ollama_client import OllamaClient
+
+    eyes = SlowEyes()
+    settings = Settings(state_dir=tmp_path, primary_model="p", fallback_model=None, generation_timeout_s=60, generation_deadline_s=120)
+    return eyes, ModelManager(OllamaClient(settings.ollama_host, transport=httpx.MockTransport(eyes.handler)), settings)
+
+
+async def test_a_look_in_progress_is_cancelled_when_a_viewer_writes_and_the_model_is_free_again(tmp_path):
+    eyes, mm = slow_manager(tmp_path)
+    look = asyncio.create_task(mm.look(b"PNG", "describe"))
+    await asyncio.wait_for(eyes.started.wait(), 2)
+    assert mm.busy is True
+    assert mm.interrupt_look() is True
+    assert await asyncio.wait_for(look, 2) is None  # not an error: the look was simply dropped
+    assert eyes.cancelled is True and mm.busy is False and mm.counters["looks_interrupted"] == 1
+    reply = await asyncio.wait_for(mm.generate([{"role": "user", "content": "hi"}]), 2)  # the viewer's reply goes straight through
+    assert reply.text == "A boss fight in a dark cave."
+    assert mm.interrupt_look() is False  # nothing to interrupt now
+
+
+async def test_cancelling_the_whole_task_still_cancels_it_and_frees_the_model(tmp_path):
+    eyes, mm = slow_manager(tmp_path)
+    look = asyncio.create_task(mm.look(b"PNG", "describe"))
+    await asyncio.wait_for(eyes.started.wait(), 2)
+    look.cancel()  # the bot is shutting down
+    with pytest.raises(asyncio.CancelledError):
+        await look
+    await asyncio.sleep(0)
+    assert mm.busy is False and eyes.cancelled is True
+
+
+async def test_a_message_from_a_viewer_stops_a_look_but_the_bots_own_echo_does_not(make_app_client, fake_ollama):
+    from app.chat.models import ChatMessage, Platform
+
+    client, app = await make_app_client()
+    c = app.state.container
+    assert c.processor.on_viewer_arrival == c.model_manager.interrupt_look  # the application wires it up
+    interrupts: list[int] = []
+    c.processor.on_viewer_arrival = lambda: interrupts.append(1)
+    await c.processor.submit(ChatMessage(platform=Platform.SIMULATOR, viewer_id="v", username="v", message="hello everyone"))
+    await c.processor.submit(ChatMessage(platform=Platform.SIMULATOR, viewer_id="bot", username="bot", message="my own echo", is_bot_self=True))
+    assert interrupts == [1]
+    assert c.processor.on_viewer_arrival is not None and app.state.container.model_manager.interrupt_look is not None

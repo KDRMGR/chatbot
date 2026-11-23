@@ -18,8 +18,7 @@ scene changed). The characters can then react to what is happening and ask about
 | `screen` | this PC's primary screen, or **one window** (`STEALTHBOT_VISION_WINDOW`, part of its title) | the whole screen also shows everything else you have open (a private window beside your game). With a window name only that window is captured. A hardware-drawn full-screen game can give a black frame: that is reported, and never replaced by a whole-screen picture. |
 
 **What it costs (measured here, RTX 3050 4 GB, `gemma3:4b`):** capture 33 ms and PNG 10 ms (pure Python, no Pillow: unsigned native
-extensions are blocked on this PC), the description about 1 s warm (316 prompt tokens, 6 s on the very first look while the vision
-part loads), 2.9 GB of the card, all of it on the GPU. A look is skipped while a reply is being written or messages are waiting
+extensions are blocked on this PC), **5 to 13 seconds for every NEW picture** (316 prompt tokens; the vision part of the model is slow on this card). An identical picture is answered in under a second because Ollama caches it: an early test of mine repeated one picture and wrongly reported 1 s. 2.9 GB of the card, all of it on the GPU. Because a look is that slow, **a viewer's message cancels a look in progress** (the connection is closed and Ollama stops), and the default interval on this PC is 60 s so the card is busy with looks at most a fifth of the time. A look is skipped while a reply is being written or messages are waiting
 (`ModelManager.look` never waits for a turn), so a viewer is never delayed, and it uses the primary model only (the backup model may
 not be able to see; a model that cannot is left alone for 10 minutes).
 

@@ -123,6 +123,7 @@ class ChatProcessor:
         self.learning: Any = None  # LearningService (notes, feedback, what gets chat talking), set by the application
         self.researcher: Any = None  # Researcher (looks up a question's key words), set by the application
         self._angles = AnglePicker()  # what GUY brings up when it speaks first
+        self.on_viewer_arrival: Callable[[], Any] | None = None  # set by the application: stop a background look at the stream
         self.approvals = ApprovalQueue(settings.approval_queue_max, settings.approval_timeout_s, clock)
 
     # ------------------------------------------------------------------ queue / worker
@@ -146,6 +147,8 @@ class ChatProcessor:
         """Queue a message. With ``wait`` the call resolves once the message was fully processed."""
         future: asyncio.Future[ProcessResult] | None = asyncio.get_running_loop().create_future() if wait else None
         priority = 0 if msg.event_type is not EventType.MESSAGE else 1  # donations/memberships first
+        if self.on_viewer_arrival is not None and not msg.is_bot_self:
+            self.on_viewer_arrival()  # a picture being described must not keep this viewer waiting
         dropped = self.incoming.put_nowait(_Item(msg, future, enqueued_at=self._clock()), priority)
         if dropped is not None:
             self._metrics.inc("queue_dropped")

@@ -261,6 +261,7 @@ def create_app(
                 except (ValueError, TypeError, AttributeError):
                     logger.warning("ignoring unreadable saved setting %s", key)
         processor.learning, processor.researcher = learning, researcher
+        processor.on_viewer_arrival = model_manager.interrupt_look
         personalities.weight_of = learning.weight
         scheduler.screen_ready, scheduler.screen_spoken = vision.has_change, vision.consume_change
         scheduler.buzz_ready, scheduler.buzz_spoken = social.has_new, social.consume

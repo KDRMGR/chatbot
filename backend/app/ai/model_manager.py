@@ -88,6 +88,7 @@ class ModelManager:
         self._primary = settings.primary_model
         self._fallback = settings.fallback_model
         self._switching_to: str | None = None
+        self._look_task: asyncio.Future[Any] | None = None
         self.counters = {"generations": 0, "failures": 0, "fallback_used": 0}
 
     @property
@@ -111,14 +112,36 @@ class ModelManager:
         async with self._sem:
             name = model or self._primary
             messages: list[dict[str, Any]] = [{"role": "user", "content": prompt, "images": [base64.b64encode(image).decode()]}]
+            # A NEW picture takes several seconds on this graphics card (an identical one is cached and looks instant). So the look
+            # runs as its own task that ``interrupt_look`` can cancel: cancelling closes the connection and Ollama stops, which frees
+            # the model for the viewer who just wrote.
+            task = asyncio.ensure_future(self._client.chat(
+                name, messages, options=self._options(0.3, num_predict, self._s.num_gpu), keep_alive=self._s.keep_alive,
+                timeout=self._s.generation_timeout_s))
+            self._look_task = task
             try:
-                result = await self._client.chat(
-                    name, messages, options=self._options(0.3, num_predict, self._s.num_gpu), keep_alive=self._s.keep_alive,
-                    timeout=self._s.generation_timeout_s)
+                result = await task
+            except asyncio.CancelledError:
+                current = asyncio.current_task()
+                if task.cancelled() and not (current is not None and current.cancelling()):
+                    self.counters["looks_interrupted"] = self.counters.get("looks_interrupted", 0) + 1
+                    return None  # interrupted for a viewer: not an error
+                task.cancel()
+                raise
             except OllamaError as exc:
                 raise AIUnavailable(f"the model could not look at the picture ({exc.__class__.__name__})") from exc
+            finally:
+                self._look_task = None
             self._last_success = self._clock()
             return result.content
+
+    def interrupt_look(self) -> bool:
+        """A viewer wrote: stop looking at a picture right now if a look is running. Returns True if one was cancelled."""
+        task = self._look_task
+        if task is not None and not task.done():
+            task.cancel()
+            return True
+        return False
 
     # ------------------------------------------------------------------ generation
     def _options(self, temperature: float | None, num_predict: int | None, num_gpu: int | None) -> dict[str, Any]:
