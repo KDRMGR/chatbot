@@ -40,6 +40,15 @@ COMMANDS: dict[str, tuple[str, frozenset[str]]] = {
                         frozenset({"auto_select", "failover_after_s", "poll_interval_s", "youtube_channel_probe_s"})),
     "set_topic": ("/api/topic", frozenset({"game", "hint", "notes", "lookup", "news", "target_id"})),
     "set_language": ("/api/language", frozenset({"language"})),
+    "set_vision": ("/api/vision", frozenset({"source", "window"})),
+    "look_now": ("/api/vision/look", frozenset()),
+    "set_research": ("/api/research", frozenset({"enabled"})),
+    "set_learning": ("/api/learning", frozenset({"enabled"})),
+    "rate_reply": ("/api/learning/rate", frozenset({"no", "rating"})),
+    "forget": ("/api/learning/reset", frozenset({"what"})),
+    "refresh_social": ("/api/social/refresh", frozenset()),
+    "restart_bot": ("/api/control/stop", frozenset({"restart"})),  # the bot comes back by itself (python -m app.run)
+    "shutdown_bot": ("/api/control/stop", frozenset({"restart"})),  # it stays off until it is started again on the PC
 }
 ROLE_KINDS: dict[str, frozenset[str]] = {
     "admin": frozenset(COMMANDS) | {"say"},
@@ -173,9 +182,10 @@ class RelayService:
     # ------------------------------------------------------------------ status
     async def build_status(self) -> dict[str, Any]:
         n = self._s.relay_feed_items
-        status, streams, topic, approvals, language, people, feed = await asyncio.gather(
+        status, streams, topic, approvals, language, people, vision, learning, research, social, feed = await asyncio.gather(
             self._get("/api/status"), self._get("/api/streams"), self._get("/api/topic"), self._get("/api/approvals"),
-            self._get("/api/language"), self._get("/api/personalities"),
+            self._get("/api/language"), self._get("/api/personalities"), self._get("/api/vision"), self._get("/api/learning"),
+            self._get("/api/research"), self._get("/api/social"),
             self._get(f"/api/messages?limit={n}") if n else asyncio.sleep(0, result=[]))
         lines = []
         for m in (feed or [])[:n]:
@@ -189,7 +199,7 @@ class RelayService:
                        "ready_in_s": p.get("ready_in_s")} for p in (people or [])[:10]]
         data = {"v": 1, "published_at": self._now().isoformat(), "status": status, "streams": streams, "topic": topic,
                 "approvals": approvals, "feed": lines, "relay": self.public_state(), "language": language,
-                "personalities": characters}
+                "personalities": characters, "vision": vision, "learning": learning, "research": research, "social": social}
         if len(json.dumps(data)) > STATUS_MAX_BYTES:
             data["feed"] = lines[:5]
         return data

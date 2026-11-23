@@ -17,6 +17,7 @@
       <button type="button" class="quiet" id="btn-signout">Sign out</button>
     </div>
   </header>
+  <div id="activity" class="activity" role="status" aria-live="polite" hidden></div>
 
   <main>
     <!-- 1. What is happening right now, and the two things you change most: pause, and the language. -->
@@ -25,13 +26,15 @@
         <div class="hero-label">The bot is commenting in</div>
         <div class="hero-stream" id="now-stream">Waiting for the bot...</div>
         <div class="hero-sub" id="now-topic"></div>
+        <div class="hero-sub" id="now-eyes"></div>
       </div>
       <div class="hero-side">
         <label class="inline"><span>Reply language</span>
           <select id="sel-language"><option>...</option></select></label>
+        <button type="button" id="btn-power" class="power-btn" disabled>GUY: checking...</button>
         <div class="row">
-          <button type="button" id="btn-pause" class="danger">Pause all replies</button>
-          <button type="button" id="btn-resume">Resume replies</button>
+          <button type="button" class="quiet" id="btn-restart">Restart GUY</button>
+          <button type="button" class="quiet" id="btn-shutdown">Shut down</button>
         </div>
         <p class="hint" id="controls-msg" role="status"></p>
       </div>
@@ -73,8 +76,34 @@
           <label class="field"><span>Background note (edit if it is wrong)</span><textarea id="topic-notes" rows="4" maxlength="1000"></textarea></label>
           <button type="button" id="btn-topic-notes">Save my own note</button>
           <div id="topic-headlines"></div>
+          <h3>What people online are saying</h3>
+          <div id="topic-buzz"></div>
+          <button type="button" class="quiet" id="btn-social">Look at social media now</button>
         </div>
         <p class="hint" id="topic-msg" role="status"></p>
+      </section>
+
+      <!-- The bot's eyes: a picture of the stream every ~30 seconds, described in one sentence, so it can react to what is happening. -->
+      <section class="card wide" id="card-eyes">
+        <h2>The bot's eyes</h2>
+        <p class="hint">Every 30 seconds or so the bot looks at the stream's picture and writes one sentence about it, so it can react and ask about what is happening. The picture is never saved and never leaves this PC; only the sentence is kept.</p>
+        <div class="two">
+          <label class="field"><span>What it looks at</span>
+            <select id="sel-vision">
+              <option value="off">Nothing (eyes closed)</option>
+              <option value="obs">OBS: exactly what viewers see (recommended)</option>
+              <option value="screen">This PC's screen</option>
+            </select></label>
+          <label class="field" id="field-vision-window"><span>Only this window (part of its title; empty = the whole screen)</span>
+            <input type="text" id="vision-window" maxlength="60" autocomplete="off" placeholder="for example the name of your game"></label>
+        </div>
+        <div class="row">
+          <button type="button" id="btn-look">Look now</button>
+          <span class="tag" id="eyes-state">off</span>
+        </div>
+        <p class="hint" id="eyes-caption"></p>
+        <p class="hint" id="eyes-help"></p>
+        <p class="hint" id="eyes-msg" role="status"></p>
       </section>
 
       <section class="card" id="card-status">
@@ -87,6 +116,8 @@
         <label class="switch-row"><input type="checkbox" id="chk-approval"><span>Ask me before anything is sent</span></label>
         <label class="switch-row"><input type="checkbox" id="chk-ai"><span>AI replies on</span></label>
         <label class="switch-row"><input type="checkbox" id="chk-proactive"><span>Bot may start conversations</span></label>
+        <label class="switch-row"><input type="checkbox" id="chk-research"><span>Look things up for questions (sends a question's key words to Wikipedia and news sites)</span></label>
+        <label class="switch-row"><input type="checkbox" id="chk-learning"><span>Learn from the stream (notes, viewer notes, your thumbs, what gets chat talking)</span></label>
       </section>
 
       <section class="card wide" id="card-approvals">
@@ -125,6 +156,22 @@
         <h2>The bot's characters</h2>
         <p class="hint">One character writes each reply, picked by what the message is (a greeting, a question, a joke...). Someone who is chatting with the bot keeps the same character for two minutes, and your own talk always goes to ChatBuddy. They are never all active at once.</p>
         <div id="people-body"></div>
+      </section>
+
+      <section class="card wide" id="card-learn">
+        <h2>Teach the bot</h2>
+        <p class="hint">Give a thumbs up to replies you like and a thumbs down to ones you don't: the bot copies the style of the first and avoids the second. It also keeps notes on the stream and on regular viewers, and learns which of its characters get chat talking. All of it stays on this PC; you can wipe it below.</p>
+        <h3>Its latest replies</h3>
+        <div id="learn-recent"></div>
+        <h3>What it has learned</h3>
+        <div id="learn-body"></div>
+        <div class="row">
+          <button type="button" class="quiet" id="btn-forget-viewers">Forget viewers</button>
+          <button type="button" class="quiet" id="btn-forget-streams">Forget stream notes</button>
+          <button type="button" class="quiet" id="btn-forget-feedback">Forget my thumbs</button>
+          <button type="button" class="quiet" id="btn-forget-all">Forget everything</button>
+        </div>
+        <p class="hint" id="learn-msg" role="status"></p>
       </section>
 
       <section class="card" id="card-log">

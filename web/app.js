@@ -167,7 +167,75 @@ async function poll() {
 }
 
 /* ------------------------------------------------------------------ commands */
+/* Everything that takes time shows what is happening: a bar at the top with the seconds so far, and a spinner on the button you pressed. */
+const KIND_LABELS = {
+  pause: "Turning GUY off", resume: "Turning GUY on", set_approval: "Saving", set_ai: "Saving", set_proactive: "Saving", approve: "Sending the reply",
+  reject: "Rejecting the reply", select_stream: "Switching stream", add_stream: "Adding the stream", update_stream: "Updating the stream",
+  remove_stream: "Removing the stream", stream_settings: "Saving", set_topic: "Saving the topic and looking it up on the internet",
+  set_language: "Changing the language", set_vision: "Saving the eyes setting", look_now: "Taking a look at the stream", set_research: "Saving",
+  set_learning: "Saving", rate_reply: "Saving your thumb", forget: "Forgetting", refresh_social: "Looking at what people online are saying",
+  say: "GUY is answering what you said", restart_bot: "Restarting GUY", shutdown_bot: "Shutting GUY down",
+};
+const SLOW_KINDS = new Set(["set_topic", "select_stream", "look_now", "add_stream", "refresh_social", "say", "set_vision", "set_language"]);
+const pending = new Map();
+let pendingId = 0;
+let restarting = null;   // { since, what } while GUY restarts or shuts down
+let flash = null;        // { text, until } a short "done" message in the bar
+
+function track(kind) {
+  const id = ++pendingId;
+  const active = document.activeElement;
+  const button = active instanceof HTMLButtonElement ? active : null;
+  if (button) { button.classList.add("busy"); button.setAttribute("aria-busy", "true"); }
+  pending.set(id, { label: KIND_LABELS[kind] || "Working", since: Date.now(), button });
+  renderActivity();
+  return id;
+}
+function untrack(id) {
+  const item = pending.get(id);
+  if (item && item.button) { item.button.classList.remove("busy"); item.button.removeAttribute("aria-busy"); }
+  pending.delete(id);
+  renderActivity();
+}
+function renderActivity() {
+  const bar = $("activity");
+  const now = Date.now();
+  let text = "", cls = "activity";
+  if (restarting) {
+    const s = Math.floor((now - restarting.since) / 1000);
+    text = restarting.what === "shutdown" ? `GUY is shutting down. It stays off until you start it again on the PC. (${s}s)` : `GUY is restarting... usually 20 to 40 seconds (${s}s)`;
+    if (s > 90) cls += " slow";
+  } else if (pending.size) {
+    const items = [...pending.values()];
+    const longest = Math.max(...items.map((p) => (now - p.since) / 1000));
+    text = items.map((p) => `${p.label}... ${Math.floor((now - p.since) / 1000)}s`).join("  ·  ");
+    if (longest > 30) { text += "  (taking longer than usual: the bot may be busy or offline)"; cls += " slow"; }
+    else if (longest > 8) text += "  (GUY is probably busy writing a reply: this is normal)";
+  } else if (flash && now < flash.until) {
+    text = flash.text; cls += " done";
+  }
+  bar.hidden = !text;
+  bar.className = cls;
+  bar.textContent = text;
+}
+setInterval(() => { try { renderActivity(); } catch (_) { /* the bar must never break the page */ } }, 500);
+
+/* A command whose answer may never come because the bot is going away (restart, shut down). */
+async function sendAndForget(kind, payload) {
+  const r = await rest("POST", "bot_commands", { kind, payload: payload || {} }, { Prefer: "return=representation" });
+  return r.ok;
+}
+
 async function send(kind, payload) {
+  const tracked = track(kind);
+  try {
+    return await sendTracked(kind, payload);
+  } finally {
+    untrack(tracked);
+  }
+}
+
+async function sendTracked(kind, payload) {
   const r = await rest("POST", "bot_commands", { kind, payload: payload || {} }, { Prefer: "return=representation" });
   let entry;
   if (!r.ok || !Array.isArray(r.data) || !r.data[0]) {
@@ -175,7 +243,7 @@ async function send(kind, payload) {
   } else {
     const id = r.data[0].id;
     entry = { time: new Date(), kind, ok: false, text: "The bot did not answer in time. Is it online?" };
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < (SLOW_KINDS.has(kind) ? 60 : 25); i++) {
       await sleep(1000);
       const s = await rest("GET", `bot_commands?select=status,result&id=eq.${id}`);
       const row = s.ok && Array.isArray(s.data) ? s.data[0] : null;
@@ -202,7 +270,7 @@ function render() {
   pill.className = `pill ${online ? "ok" : "bad"}`;
   pill.textContent = latest ? (online ? "Bot: online" : `Bot: offline (seen ${ago(ageS)} ago)`) : "Bot: no data yet";
   renderStatus(st, online);
-  if (PAGE === "admin") { renderNow(st); renderControls(st); renderApprovals(st); renderStreams(st); renderTopic(st); renderPeople(st); }
+  if (PAGE === "admin") { renderNow(st); renderControls(st); renderApprovals(st); renderStreams(st); renderTopic(st); renderEyes(st); renderPeople(st); renderLearning(st); renderPower(st, online); renderBuzz(st); }
   renderFeed(st);
   renderTalk(st, online);
 }
@@ -240,6 +308,7 @@ function renderStatus(st, online) {
     ["Stream", focus ? focus.label : "none yet"],
     ["Topic", topicOf(st).game || "not set yet"],
     ["Language", languageLabel(st)],
+    ["Eyes", eyesSummary(st)],
     ["Kick", kick ? `${kick.state}${kick.channel ? ` in ${kick.channel}` : ""}${kick.is_live ? " (live)" : ""}` : "not enabled"],
     ["YouTube", yt ? yt.state : "not enabled"],
     ["AI", `${ai.active_model || "?"}${ai.primary_degraded ? " (backup model)" : ""}`],
@@ -267,6 +336,7 @@ function renderNow(st) {
   if ((topic.headlines || []).length) bits.push(`${topic.headlines.length} recent headlines`);
   if (topic.notes) bits.push(topic.source === "manual" ? "your own note" : "background from Wikipedia");
   $("now-topic").textContent = bits.join("  ·  ");
+  $("now-eyes").textContent = `Eyes: ${eyesSummary(st)}`;
   const sel = $("sel-language");
   const options = (st.language && st.language.options) || [];
   if (changed("language-options", options)) sel.replaceChildren(...options.map((o) => el("option", { value: o.id, text: o.label })));
@@ -288,6 +358,7 @@ function renderControls(st) {
   const c = (st && st.status && st.status.controls) || {};
   const set = (id, value) => { if (!dirty.has(id)) $(id).checked = Boolean(value); };
   set("chk-approval", c.approval_required); set("chk-ai", c.ai_enabled); set("chk-proactive", c.proactive_enabled);
+  set("chk-research", st && st.research && st.research.enabled); set("chk-learning", st && st.learning && st.learning.enabled);
 }
 
 function renderApprovals(st) {
@@ -436,6 +507,137 @@ function sayAndHold(id, text, level, ms = 8000) {
   $(id).dataset.hold = String(Date.now() + ms);
 }
 
+/* The big switch: GUY on (replying and joining in), replying only, or off (silent). */
+function powerMode(st) {
+  const c = (st && st.status && st.status.controls) || {};
+  if (c.outgoing_paused) return "off";
+  return c.proactive_enabled ? "on" : "half";
+}
+
+function renderPower(st, online) {
+  const b = $("btn-power");
+  if (restarting && latest && Date.parse(latest.updated_at) > restarting.since + 3000 && online && restarting.what === "restart") {
+    const took = Math.round((Date.now() - restarting.since) / 1000);
+    restarting = null;
+    flash = { text: `GUY is back (${took}s).`, until: Date.now() + 6000 };
+  }
+  if (restarting && restarting.what === "shutdown" && Date.now() - restarting.since > 20000) restarting = null;
+  if (!st || !online) { b.disabled = true; b.className = "power-btn"; b.textContent = "GUY is offline"; return; }
+  const mode = powerMode(st);
+  b.disabled = false;
+  b.className = `power-btn ${mode === "on" ? "on" : mode === "half" ? "half" : ""}`;
+  b.textContent = mode === "on" ? "GUY is ON: replying and joining in (click to turn off)"
+    : mode === "half" ? "GUY is ON: replying only, not starting conversations (click to turn off)"
+    : "GUY is OFF: silent (click to turn on)";
+}
+
+async function togglePower() {
+  const st = latest && latest.data;
+  const turnOff = powerMode(st) !== "off";
+  const first = await send(turnOff ? "pause" : "resume");
+  if (!first.ok) { sayAndHold("controls-msg", first.text, "error"); return; }
+  const second = await send("set_proactive", { enabled: !turnOff });
+  sayAndHold("controls-msg", second.ok ? (turnOff ? "GUY is off: it will not say anything." : "GUY is on: replying and joining in.") : second.text, second.ok ? "ok" : "error");
+}
+
+async function restartBot(shutdown) {
+  const question = shutdown
+    ? "Shut GUY down? It will stay off until you start it again on the PC (scripts\\start.bat). You will not be able to turn it on from here."
+    : "Restart GUY? It goes quiet for about 20 to 40 seconds while it restarts.";
+  if (!window.confirm(question)) return;
+  restarting = { since: Date.now(), what: shutdown ? "shutdown" : "restart" };
+  renderActivity();
+  const sent = await sendAndForget(shutdown ? "shutdown_bot" : "restart_bot", { restart: !shutdown });
+  if (!sent) { restarting = null; sayAndHold("controls-msg", "Could not send that command.", "error"); }
+}
+
+/* What people online are saying (Mastodon, Reddit, search trends). X and Instagram cannot be read. */
+function renderBuzz(st) {
+  const s = st && st.social;
+  if (!s) return;
+  const view = [s.sources, s.status, s.items, s.age_s === null ? null : Math.floor(s.age_s / 60)];
+  if (!changed("buzz", view)) return;
+  const box = $("topic-buzz");
+  const parts = [];
+  if (!(s.sources || []).length) parts.push(el("p", { class: "hint", text: "No social source is switched on. Set STEALTHBOT_SOCIAL_SOURCES in backend\\.env to mastodon, trends and/or reddit. (X and Instagram cannot be read: X's API is paid and Instagram has none.)" }));
+  else {
+    parts.push(el("div", { class: "chips" }, (s.sources || []).map((name) => el("span", { class: `chip ${String((s.status || {})[name] || "").startsWith("ok") ? "on" : ""}`, text: `${name}: ${(s.status || {})[name] || "waiting"}` }))));
+    parts.push(...((s.items || []).length ? [el("ul", { class: "plain" }, s.items.map((i) => el("li", { text: `${i.source}: ${i.text}` })))] : [el("p", { class: "hint", text: "Nothing found yet." })]));
+  }
+  box.replaceChildren(...parts);
+}
+
+/* The bot's eyes. */
+function eyesSummary(st) {
+  const v = st && st.vision;
+  if (!v) return "no data yet";
+  if (v.state === "off") return "closed";
+  if (v.state === "error") return `problem: ${v.error || "?"}`;
+  if (v.state === "seeing" && v.caption) return `seeing "${v.caption.length > 90 ? v.caption.slice(0, 89) + "…" : v.caption}"`;
+  return "waiting for the first look";
+}
+
+function renderEyes(st) {
+  const v = st && st.vision;
+  if (!v) return;
+  const sel = $("sel-vision");
+  if (document.activeElement !== sel) sel.value = v.source;
+  const win = $("vision-window");
+  if (!dirty.has("vision-window") && document.activeElement !== win) win.value = v.window || "";
+  $("field-vision-window").hidden = v.source !== "screen";
+  $("btn-look").disabled = v.source === "off";
+  const state = $("eyes-state");
+  state.textContent = v.state === "seeing" ? "seeing" : v.state === "error" ? "problem" : v.state === "waiting" ? "waiting for the first look" : "eyes closed";
+  state.className = `tag ${v.state === "seeing" ? "live" : v.state === "error" ? "offline" : ""}`;
+  $("eyes-caption").textContent = v.caption ? `It sees (${ago(v.age_s || 0)} ago): ${v.caption}` : "";
+  const help = $("eyes-help");
+  if (v.error) { help.textContent = v.error; help.className = "hint error"; return; }
+  help.className = "hint";
+  help.textContent = v.source === "obs"
+    ? "In OBS: Tools > WebSocket Server Settings > Enable (port 4455). If you set a password there, store it once with scripts\\obs_login.py."
+    : v.source === "screen"
+      ? "Careful: the whole screen shows everything open on this PC (messages, tabs, passwords). Type a window name above to capture only that window, or use OBS."
+      : "";
+}
+
+/* What it learned, and the thumbs. */
+async function rate(no, rating) {
+  const entry = await send("rate_reply", { no, rating });
+  sayAndHold("learn-msg", entry.ok ? "Thanks: the bot learns from that." : entry.text, entry.ok ? "ok" : "error");
+}
+
+async function forget(what, question) {
+  if (!window.confirm(question)) return;
+  const entry = await send("forget", { what });
+  sayAndHold("learn-msg", entry.ok ? "Forgotten." : entry.text, entry.ok ? "ok" : "error");
+}
+
+function renderLearning(st) {
+  const l = st && st.learning;
+  if (!l) return;
+  const recent = l.recent || [];
+  if (changed("learn-recent", recent)) {
+    $("learn-recent").replaceChildren(...(recent.length ? recent.map((r) => {
+      const up = el("button", { type: "button", class: r.rating === 1 ? "" : "quiet", text: "👍 Good", "aria-pressed": String(r.rating === 1) });
+      up.addEventListener("click", () => rate(r.no, 1));
+      const down = el("button", { type: "button", class: r.rating === -1 ? "danger" : "quiet", text: "👎 Not good", "aria-pressed": String(r.rating === -1) });
+      down.addEventListener("click", () => rate(r.no, -1));
+      return el("div", { class: "item" }, [el("div", { class: "meta", text: r.personality || "bot" }), el("div", { text: r.text }), el("div", { class: "actions" }, [up, down])]);
+    }) : [el("p", { class: "hint", text: l.enabled ? "Nothing yet: the bot's replies appear here." : "Learning is switched off." })]));
+  }
+  const view = [l.enabled, l.stats, l.viewers, l.viewers_with_notes, l.stream_note, l.examples, l.liked, l.disliked];
+  if (!changed("learn-body", view)) return;
+  const dl = el("dl", { class: "kv" });
+  const row = (k, v) => dl.append(el("dt", { text: k }), el("dd", { text: v }));
+  row("Learning", l.enabled ? "on" : "off");
+  row("Stream notes", l.stream_note || "none yet (written every few minutes while chat is active)");
+  row("Viewers", `${l.viewers} remembered, ${l.viewers_with_notes} with a note`);
+  row("Your thumbs", `${l.liked} up, ${l.disliked} down`);
+  for (const s of l.stats || []) row(s.name, `${s.engaged} of ${s.sent} messages got an answer from chat${s.sent >= 10 ? ` (picked ${s.weight}x as often)` : ""}`);
+  for (const e of l.examples || []) row(`Note: ${e.name}`, e.note);
+  $("learn-body").replaceChildren(dl);
+}
+
 function renderLog() {
   const body = $("log-body");
   if (!commandLog.length) { body.replaceChildren(el("p", { class: "hint", text: "Nothing sent yet." })); return; }
@@ -534,9 +736,33 @@ function wire() {
   on("btn-forgot", "click", forgot);
   on("form-password", "submit", setPassword);
   on("btn-signout", "click", () => signOut());
-  on("btn-pause", "click", () => send("pause"));
-  on("btn-resume", "click", () => send("resume"));
-  for (const [id, kind] of [["chk-approval", "set_approval"], ["chk-ai", "set_ai"], ["chk-proactive", "set_proactive"]]) {
+  on("btn-power", "click", togglePower);
+  on("btn-restart", "click", () => restartBot(false));
+  on("btn-shutdown", "click", () => restartBot(true));
+  on("btn-social", "click", async () => {
+    const entry = await send("refresh_social");
+    sayAndHold("topic-msg", entry.ok ? "Looked at social media." : entry.text, entry.ok ? "ok" : "error");
+  });
+  on("sel-vision", "change", async () => {
+    const entry = await send("set_vision", { source: $("sel-vision").value });
+    sayAndHold("eyes-msg", entry.ok ? "Saved." : entry.text, entry.ok ? "ok" : "error");
+  });
+  on("vision-window", "input", () => dirty.add("vision-window"));
+  on("vision-window", "change", async () => {
+    const entry = await send("set_vision", { window: $("vision-window").value });
+    dirty.delete("vision-window");
+    sayAndHold("eyes-msg", entry.ok ? "Saved." : entry.text, entry.ok ? "ok" : "error");
+  });
+  on("btn-look", "click", async () => {
+    sayAndHold("eyes-msg", "Looking...", "", 20000);
+    const entry = await send("look_now");
+    sayAndHold("eyes-msg", entry.ok ? "Done." : entry.text, entry.ok ? "ok" : "error");
+  });
+  on("btn-forget-viewers", "click", () => forget("viewers", "Forget everything the bot remembers about viewers?"));
+  on("btn-forget-streams", "click", () => forget("streams", "Forget the bot's notes on the streams?"));
+  on("btn-forget-feedback", "click", () => forget("feedback", "Forget your thumbs up and down?"));
+  on("btn-forget-all", "click", () => forget("all", "Forget everything the bot has learned (viewers, stream notes, your thumbs and what gets chat talking)?"));
+  for (const [id, kind] of [["chk-approval", "set_approval"], ["chk-ai", "set_ai"], ["chk-proactive", "set_proactive"], ["chk-research", "set_research"], ["chk-learning", "set_learning"]]) {
     on(id, "change", async () => {
       dirty.add(id);
       const entry = await send(kind, { enabled: $(id).checked });

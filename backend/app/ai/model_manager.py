@@ -7,6 +7,7 @@ One generation at a time (a semaphore) keeps a 4 GB GPU and a live chat both pre
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import re
 import time
@@ -96,6 +97,28 @@ class ModelManager:
     @property
     def fallback(self) -> str | None:
         return self._fallback
+
+    @property
+    def busy(self) -> bool:
+        """True while a reply is being written (background jobs wait their turn: viewers always come first)."""
+        return self._sem.locked()
+
+    async def look(self, image: bytes, prompt: str, *, model: str | None = None, num_predict: int = 60) -> str | None:
+        """Describe a picture with the (vision-capable) model. Returns None when the model is busy with a reply: a look is never
+        worth keeping a viewer waiting. Uses the primary model only (the backup may not be able to see). Raises AIUnavailable."""
+        if self._sem.locked() or self._clock() < self._down_until:
+            return None
+        async with self._sem:
+            name = model or self._primary
+            messages: list[dict[str, Any]] = [{"role": "user", "content": prompt, "images": [base64.b64encode(image).decode()]}]
+            try:
+                result = await self._client.chat(
+                    name, messages, options=self._options(0.3, num_predict, self._s.num_gpu), keep_alive=self._s.keep_alive,
+                    timeout=self._s.generation_timeout_s)
+            except OllamaError as exc:
+                raise AIUnavailable(f"the model could not look at the picture ({exc.__class__.__name__})") from exc
+            self._last_success = self._clock()
+            return result.content
 
     # ------------------------------------------------------------------ generation
     def _options(self, temperature: float | None, num_predict: int | None, num_gpu: int | None) -> dict[str, Any]:

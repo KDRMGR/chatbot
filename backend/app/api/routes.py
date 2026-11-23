@@ -503,6 +503,123 @@ async def topic_change(request: Request) -> JSONResponse:
     return JSONResponse(topic.snapshot())
 
 
+# ---------------------------------------------------------------------------- eyes, looking things up, learning
+@protected
+async def vision_status(request: Request) -> JSONResponse:
+    return JSONResponse(_c(request).vision.snapshot())
+
+
+@protected
+async def vision_change(request: Request) -> JSONResponse:
+    """``{"source": "off" | "obs" | "screen", "window": "part of a window title"}``: what the bot looks at (nothing, OBS's program
+    output, or this PC's screen / one window). Saved. The picture never leaves this PC."""
+    c = _c(request)
+    body = await _json_body(request)
+    errors = [{"loc": [k], "msg": "unknown setting"} for k in (body if isinstance(body, dict) else []) if k not in ("source", "window")]
+    if not isinstance(body, dict) or not body:
+        errors.append({"loc": ["body"], "msg": "give source and/or window"})
+    for key in ("source", "window"):
+        if isinstance(body, dict) and key in body and not isinstance(body[key], str):
+            errors.append({"loc": [key], "msg": "must be text"})
+    if errors:
+        raise ValidationFailed(errors)
+    try:
+        await c.vision.configure(body.get("source"), body.get("window"))
+    except ValueError as exc:
+        raise ValidationFailed([{"loc": ["source"], "msg": str(exc)}]) from exc
+    return JSONResponse(c.vision.snapshot())
+
+
+@protected
+async def vision_look(request: Request) -> JSONResponse:
+    """Look right now (instead of waiting for the next round)."""
+    vision = _c(request).vision
+    caption = await vision.look_once()
+    return JSONResponse({**vision.snapshot(), "new_caption": caption})
+
+
+async def _switch(request: Request, apply) -> bool:  # noqa: ANN001
+    body = await _json_body(request)
+    if not isinstance(body, dict) or set(body) != {"enabled"} or not isinstance(body["enabled"], bool):
+        raise ValidationFailed([{"loc": ["enabled"], "msg": "must be true or false"}])
+    await apply(body["enabled"])
+    return body["enabled"]
+
+
+@protected
+async def research_status(request: Request) -> JSONResponse:
+    return JSONResponse(_c(request).researcher.snapshot())
+
+
+@protected
+async def research_change(request: Request) -> JSONResponse:
+    """Switch the lookup of a question's key words (Wikipedia / news) on or off. Viewers' words go to those sites, so it is opt-in."""
+    c = _c(request)
+
+    async def apply(value: bool) -> None:
+        c.researcher.enabled = value
+        await _save_json(c, "features.v1", {"research": value})
+
+    await _switch(request, apply)
+    return JSONResponse(c.researcher.snapshot())
+
+
+@protected
+async def social_status(request: Request) -> JSONResponse:
+    return JSONResponse(_c(request).social.snapshot())
+
+
+@protected
+async def social_refresh(request: Request) -> JSONResponse:
+    """Look at the social sources now (instead of waiting for the next round)."""
+    social = _c(request).social
+    await social.refresh(force=True)
+    return JSONResponse(social.snapshot())
+
+
+@protected
+async def learning_status(request: Request) -> JSONResponse:
+    return JSONResponse(_c(request).learning.snapshot())
+
+
+@protected
+async def learning_change(request: Request) -> JSONResponse:
+    c = _c(request)
+    await _switch(request, c.learning.set_enabled)
+    return JSONResponse(c.learning.snapshot())
+
+
+@protected
+async def learning_rate(request: Request) -> JSONResponse:
+    """``{"no": <number of one of the bot's latest replies>, "rating": 1 | -1}``: thumbs up / down (the same again takes it back)."""
+    c = _c(request)
+    body = await _json_body(request)
+    if (not isinstance(body, dict) or set(body) != {"no", "rating"} or isinstance(body["no"], bool) or not isinstance(body["no"], int)
+            or isinstance(body["rating"], bool) or body["rating"] not in (1, -1)):
+        raise ValidationFailed([{"loc": ["body"], "msg": "give no (a reply number) and rating (1 or -1)"}])
+    try:
+        c.learning.rate(body["no"], body["rating"])
+    except KeyError:
+        return JSONResponse({"detail": "that reply is not in the list any more"}, status_code=404)
+    await c.learning.flush()
+    return JSONResponse(c.learning.snapshot())
+
+
+@protected
+async def learning_reset(request: Request) -> JSONResponse:
+    """``{"what": "viewers" | "streams" | "feedback" | "stats" | "all"}``: forget what the bot learned."""
+    c = _c(request)
+    body = await _json_body(request)
+    try:
+        if not isinstance(body, dict) or set(body) != {"what"} or not isinstance(body["what"], str):
+            raise ValueError("give what")
+        c.learning.reset(body["what"])
+    except ValueError as exc:
+        raise ValidationFailed([{"loc": ["what"], "msg": "must be viewers, streams, feedback, stats or all"}]) from exc
+    await c.learning.flush()
+    return JSONResponse(c.learning.snapshot())
+
+
 # ---------------------------------------------------------------------------- which language the bot answers in
 LANGUAGE_NAMES = {"english": "English", "hinglish": "Hinglish (Hindi in English letters)", "hindi": "Hindi (Devanagari)",
                   "auto": "Match the viewer's language"}
@@ -580,6 +697,7 @@ async def streams_remove(request: Request) -> JSONResponse:
     except StreamsError as exc:
         raise ValidationFailed(exc.errors) from exc
     c.topic.forget(target_id)  # what that stream was about is no longer needed
+    c.learning.forget_stream(target_id)
     return JSONResponse(director.snapshot())
 
 
@@ -709,6 +827,17 @@ routes = [
     Route("/api/platforms/{name}/disconnect", platform_disconnect, methods=["POST"]),
     Route("/api/platforms/{name}/connect", platform_connect, methods=["POST"]),
     Route("/api/relay", relay_status, methods=["GET"]),
+    Route("/api/vision", vision_status, methods=["GET"]),
+    Route("/api/vision", vision_change, methods=["POST"]),
+    Route("/api/vision/look", vision_look, methods=["POST"]),
+    Route("/api/research", research_status, methods=["GET"]),
+    Route("/api/research", research_change, methods=["POST"]),
+    Route("/api/social", social_status, methods=["GET"]),
+    Route("/api/social/refresh", social_refresh, methods=["POST"]),
+    Route("/api/learning", learning_status, methods=["GET"]),
+    Route("/api/learning", learning_change, methods=["POST"]),
+    Route("/api/learning/rate", learning_rate, methods=["POST"]),
+    Route("/api/learning/reset", learning_reset, methods=["POST"]),
     Route("/api/language", language_status, methods=["GET"]),
     Route("/api/language", language_change, methods=["POST"]),
     Route("/api/topic", topic_status, methods=["GET"]),

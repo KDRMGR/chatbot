@@ -91,3 +91,14 @@ h3 { margin: 1rem 0 0.4rem; font-size: 0.95rem; }
 ul.plain { margin: 0.2rem 0 0; padding-left: 1.1rem; font-size: 0.88rem; }
 .dot { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; background: var(--muted); margin-right: 0.4rem; }
 .dot.live { background: var(--ok); } .dot.offline { background: var(--bad); }
+
+[hidden] { display: none !important; }
+.activity { position: sticky; top: 0; z-index: 5; padding: 0.55rem 1rem; background: var(--accent); color: #fff; font-size: 0.9rem; text-align: center; }
+.activity.slow { background: var(--warn); color: #111; }
+.activity.done { background: var(--ok); color: #fff; }
+.power-btn { width: 100%; font-size: 1.15rem; font-weight: 700; padding: 0.9rem 1rem; border-radius: 12px; margin: 0.6rem 0 0.2rem; background: var(--bad); border-color: var(--bad); color: #fff; }
+.power-btn.on { background: var(--ok); border-color: var(--ok); }
+.power-btn.half { background: var(--warn); border-color: var(--warn); color: #111; }
+button.busy { position: relative; pointer-events: none; opacity: 0.75; }
+button.busy::after { content: ""; display: inline-block; width: 0.8em; height: 0.8em; margin-left: 0.5em; vertical-align: -0.1em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

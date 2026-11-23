@@ -429,14 +429,39 @@ class TopicBriefing:
         raise TopicError(f"Wikipedia's matches for “{query}” were all disambiguation pages: try other search words")
 
     # ------------------------------------------------------------------ the news
-    async def _headlines(self, query: str) -> tuple[list[str], str, str | None]:
+    async def quick_lookup(self, query: str) -> str | None:
+        """A short piece of background for one viewer question: the matching Wikipedia summary (cut to 260 characters) and up to two
+        headlines. Does not touch the stream's saved topic, and is not rate limited here (``knowledge/research.py`` does that).
+        Raises TopicError when nothing could be looked up."""
+        query = clean_line(query, 100)
+        if not query:
+            raise TopicError("nothing to look up", invalid_input=True)
+        parts: list[str] = []
+        problems: list[str] = []
+        if "wikipedia" in self.sources():
+            try:
+                found = await self._wikipedia(query)
+                parts.append(f"{found['title']}: {clean_notes(found['extract'], 260)}")
+            except TopicError as exc:
+                problems.append(str(exc))
+        if self._news_sources():
+            headlines, _source, problem = await self._headlines(query, wanted=2, budget=220)
+            if headlines:
+                parts.append("Recent headlines: " + " | ".join(headlines))
+            elif problem:
+                problems.append(problem)
+        if not parts:
+            raise TopicError("; ".join(problems)[:160] or "nothing found")
+        return " ".join(parts)
+
+    async def _headlines(self, query: str, *, wanted: int | None = None, budget: int | None = None) -> tuple[list[str], str, str | None]:
         """(headlines, which source gave them, problem). Every source is tried in order until there are enough headlines; a source
         that fails only adds to the problem text."""
         query = clean_line(query, 80)
         if not query:
             return [], "", "there is nothing to search the news for"
-        wanted = int(getattr(self._s, "topic_news_max_items", 4))
-        budget = int(getattr(self._s, "topic_news_max_chars", 360))
+        wanted = wanted or int(getattr(self._s, "topic_news_max_items", 4))
+        budget = budget or int(getattr(self._s, "topic_news_max_chars", 360))
         found: list[str] = []
         used: list[str] = []
         problems: list[str] = []

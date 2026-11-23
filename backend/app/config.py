@@ -114,6 +114,24 @@ class Settings:
     topic_news_lang: str = "en"  # Google News edition: language-REGION, e.g. en-IN
     topic_news_region: str = "IN"
 
+    # --- eyes: a one-sentence description of what the stream shows, from a picture taken every vision_interval_s (see vision/service.py) ---
+    vision_source: str = "off"  # off | obs (what viewers see, via OBS's WebSocket server) | screen (this PC's screen, or one window)
+    vision_interval_s: float = 30.0
+    vision_window: str = ""  # screen only: part of a window's title; empty = the whole primary screen (which shows everything you have open)
+    vision_max_width: int = 960  # the picture is shrunk to about this width before it is looked at (it never leaves this PC)
+    vision_num_predict: int = 60
+    obs_host: str = "127.0.0.1"
+    obs_port: int = 4455
+    # --- what people online are saying (see knowledge/social.py). X and Instagram cannot be read legitimately and are not offered.
+    social_sources: list[str] = field(default_factory=list)  # any of: mastodon, trends, reddit (reddit needs scripts\reddit_login.py)
+    social_refresh_min: float = 20.0
+    social_max_items: int = 5
+    mastodon_instance: str = "mastodon.social"
+    # --- looking things up for a viewer's question, and learning from the stream (see knowledge/research.py, learning/) ---
+    research_enabled: bool = False  # a question's key words are searched on Wikipedia/news (the same sources as the topic) before answering
+    research_timeout_s: float = 4.0
+    learning_enabled: bool = True  # stream notes, viewer notes, what the streamer liked, what gets chat talking (local; never leaves this PC)
+
     # --- server (loopback only) ---
     host: str = "127.0.0.1"
     port: int = 8000
@@ -229,6 +247,10 @@ class Settings:
     proactive_question_max_s: float = 1200.0
     proactive_trivia_min_s: float = 1800.0
     proactive_trivia_max_s: float = 2400.0
+    proactive_buzz_min_s: float = 150.0  # at least this long between two messages about what people online are saying
+    proactive_buzz_max_s: float = 240.0
+    proactive_screen_min_s: float = 90.0  # at least this long between two messages about what is on screen (the eyes must be on)
+    proactive_screen_max_s: float = 150.0
 
     def __post_init__(self) -> None:
         self.state_dir = Path(self.state_dir)
@@ -280,6 +302,20 @@ class Settings:
             raise ValueError("topic_news_refresh_min must be at least 5, topic_news_max_items 1-8 and topic_news_max_chars 80-800")
         if self.conversation_sticky_s < 0:
             raise ValueError("conversation_sticky_s cannot be negative")
+        self.vision_source = self.vision_source.strip().lower()
+        if self.vision_source not in ("off", "obs", "screen"):
+            raise ValueError("vision_source must be off, obs or screen")
+        if self.vision_interval_s < 10 or not 320 <= self.vision_max_width <= 1920 or not 20 <= self.vision_num_predict <= 200:
+            raise ValueError("vision_interval_s must be at least 10, vision_max_width 320-1920 and vision_num_predict 20-200")
+        if self.obs_host not in ("127.0.0.1", "localhost", "::1") or not 1 <= self.obs_port <= 65535:
+            raise ValueError("obs_host must be this PC (127.0.0.1) and obs_port a port number")
+        self.social_sources = [x.strip().lower() for x in self.social_sources if x.strip()]
+        if not set(self.social_sources) <= {"mastodon", "trends", "reddit"}:
+            raise ValueError("social_sources can only contain mastodon, trends and reddit (X and Instagram cannot be read without paid access)")
+        if self.social_refresh_min < 5 or not 1 <= self.social_max_items <= 8 or not re.fullmatch(r"[a-z0-9.-]{3,60}", self.mastodon_instance):
+            raise ValueError("social_refresh_min must be at least 5, social_max_items 1-8 and mastodon_instance a host name")
+        if not 1 <= self.research_timeout_s <= 15:
+            raise ValueError("research_timeout_s must be between 1 and 15 seconds")
         if self.kick_message_type not in ("bot", "user"):
             raise ValueError("kick_message_type must be 'bot' or 'user'")
         self.kick_target_channel = self.kick_target_channel.strip().lower()
@@ -324,7 +360,7 @@ class Settings:
             raise ValueError("proactive quiet/gap/stagger times cannot be negative")
         if not 0.0 <= self.proactive_viewer_reserve < 1.0:
             raise ValueError("proactive_viewer_reserve must be between 0 and 1 (exclusive)")
-        for name in ("general", "question", "trivia"):
+        for name in ("general", "question", "trivia", "screen", "buzz"):
             lo, hi = getattr(self, f"proactive_{name}_min_s"), getattr(self, f"proactive_{name}_max_s")
             if not 0 < lo <= hi:
                 raise ValueError(f"proactive_{name}_min_s must be positive and not larger than proactive_{name}_max_s")

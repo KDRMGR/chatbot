@@ -65,6 +65,7 @@ class ResponseGenerator:
     async def generate(
         self, profile: PersonalityProfile, category: Category, *, platform: str, username: str | None,
         message: str | None, is_new_viewer: bool = False, is_streamer: bool = False, is_voice: bool = False,
+        viewer_note: str | None = None,
     ) -> GeneratedReply:
         # Duplicate-prompt cache: a question already answered recently is answered the same way.
         cache_key = (category.value, compare_key(message)) if category is Category.QUESTION and message else None
@@ -84,7 +85,7 @@ class ResponseGenerator:
                 profile=profile, category=category, username=username, message=message,
                 context_text=self._ctx.render(self._s.context_max_chars), game=self._ctx.game,
                 avoid=self._recent.last(3), is_new_viewer=is_new_viewer, retry_hint=retry_hint, is_streamer=is_streamer,
-                is_voice=is_voice,
+                is_voice=is_voice, viewer_note=viewer_note, liked=list(self._ctx.liked), disliked=list(self._ctx.disliked), angle=self._ctx.angle or None,
             )
             try:
                 ai = await self._mm.generate(messages, temperature=temperature)

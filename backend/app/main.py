@@ -35,7 +35,7 @@ from .database.repository import Repository
 from .logging_setup import setup_logging
 from .personalities.defaults import default_personality_rows
 from .personalities.manager import PersonalityManager, PersonalityProfile
-from .platforms.base import PlatformAdapter
+from .platforms.base import ConnectionState, PlatformAdapter
 from .platforms.simulator import SimulatorAdapter
 from .platforms.kick.adapter import KickAdapter
 from .platforms.kick.api import KickApi
@@ -47,6 +47,11 @@ from .platforms.youtube.quota import QuotaTracker
 from .scheduler.engagement import EngagementScheduler
 from .streams.director import StreamDirector
 from .knowledge.topic import TopicBriefing
+from .knowledge.research import Researcher
+from .knowledge.social import REDDIT_KEY, SocialBuzz
+from .learning.service import LearningService
+from .vision.obs import CREDENTIAL_KEY as OBS_KEY, ObsClient
+from .vision.service import VisionService
 from .relay.service import RelayService
 from .relay.voice import make_voice_handler
 from .relay.supabase import SupabaseClient
@@ -87,6 +92,10 @@ class Container:
     streams: Any = None  # StreamDirector (which stream the bot comments in)
     topic: Any = None  # TopicBriefing (what the stream is about: game name + a short background note)
     relay: Any = None  # RelayService (online panel through Supabase), when enabled
+    vision: Any = None  # VisionService (the bot's eyes: a one-sentence description of the stream's picture)
+    learning: Any = None  # LearningService (stream notes, viewer notes, the streamer's thumbs, what gets chat talking)
+    researcher: Any = None  # Researcher (looks up a viewer question's key words before answering)
+    social: Any = None  # SocialBuzz (what people online are saying about the topic)
 
 
 def create_app(
@@ -215,6 +224,47 @@ def create_app(
                 logger.warning("ignoring unreadable saved scheduler settings")
         processor.activity = scheduler  # the pipeline tells it when viewers and the bot speak
 
+        # ---- the eyes, what the bot learns, and looking things up (each can be switched off in the panel)
+        async def save_vision(state: dict[str, Any]) -> None:
+            await repo.set_setting("vision.v1", json.dumps(state), now_utc())
+
+        async def save_learning(state: dict[str, Any]) -> None:
+            await repo.set_setting("learning.v1", json.dumps(state), now_utc())
+
+        def obs_password() -> str | None:
+            assert cfg.data_dir is not None
+            return str((CredentialStore(cfg.data_dir).load(OBS_KEY) or {}).get("password") or "") or None
+
+        def streaming_now() -> bool:
+            return any(a.status().state is ConnectionState.CONNECTED for p, a in adapters.items() if p in (Platform.KICK, Platform.YOUTUBE))
+
+        def chat_is_idle() -> bool:
+            return processor.incoming.qsize() == 0 and not controls.outgoing_paused
+
+        vision = VisionService(
+            cfg, model_manager, context, lexicon, obs=ObsClient(cfg.obs_host, cfg.obs_port, obs_password), save=save_vision,
+            should_look=lambda: controls.ai_enabled and cfg.ai_enabled and chat_is_idle() and streaming_now())
+        learning = LearningService(cfg, model_manager, context, lexicon, save=save_learning, idle=chat_is_idle, vision=vision)
+        researcher = Researcher(cfg, topic, context)
+
+        def reddit_credentials() -> dict[str, Any] | None:
+            assert cfg.data_dir is not None
+            return CredentialStore(cfg.data_dir).load(REDDIT_KEY)
+
+        social = SocialBuzz(cfg, topic, context, credentials=reddit_credentials)
+        for key, restore in (("vision.v1", lambda raw: vision.restore(json.loads(raw))), ("learning.v1", learning.restore),
+                             ("features.v1", lambda raw: setattr(researcher, "enabled", bool(json.loads(raw).get("research", researcher.enabled))))):
+            saved_raw = await repo.get_setting(key)
+            if saved_raw:
+                try:
+                    restore(saved_raw)
+                except (ValueError, TypeError, AttributeError):
+                    logger.warning("ignoring unreadable saved setting %s", key)
+        processor.learning, processor.researcher = learning, researcher
+        personalities.weight_of = learning.weight
+        scheduler.screen_ready, scheduler.screen_spoken = vision.has_change, vision.consume_change
+        scheduler.buzz_ready, scheduler.buzz_spoken = social.has_new, social.consume
+
         async def save_streams(config_dict: dict[str, Any]) -> None:
             await repo.set_setting("streams.config", json.dumps(config_dict), now_utc())
 
@@ -233,6 +283,10 @@ def create_app(
             if changed and not first:
                 context.reset_chat()
                 logger.info("Topic switched with the stream to '%s' (%s)", label, context.game_label)
+            learning.on_focus(target_id)  # the stream's own notes come with it
+            if changed:
+                social.clear()  # what people said about the previous stream does not apply here
+            social.wake()
 
         director.on_focus = on_focus
         app.state.container = Container(
@@ -240,7 +294,7 @@ def create_app(
             generator=generator, processor=processor, session_manager=session_manager, metrics=metrics,
             controls=controls, context=context, personalities=personalities, adapters=adapters,
             api_token=load_or_create_token(cfg.api_token_file), youtube=youtube, scheduler=scheduler,
-            system_stats=SystemStats(), streams=director, topic=topic,
+            system_stats=SystemStats(), streams=director, topic=topic, vision=vision, learning=learning, researcher=researcher, social=social,
         )
         relay: RelayService | None = None
         if cfg.relay_enabled:  # the online panel: the bot calls OUT to Supabase; nothing listens for the internet
@@ -269,6 +323,9 @@ def create_app(
             asyncio.create_task(run_gc_loop(cfg.gc_interval_s), name="memory-housekeeping"),
             asyncio.create_task(processor.run_approval_sweeper(), name="approval-sweeper"),
             asyncio.create_task(director.run(), name="stream-director"),
+            asyncio.create_task(vision.run(), name="eyes"),
+            asyncio.create_task(learning.run(), name="learning"),
+            asyncio.create_task(social.run_loop(), name="social-buzz"),
             asyncio.create_task(topic.run_loop(), name="topic-lookup"),  # looks the topic up at start, after a switch, and keeps headlines fresh
         ]
         if relay is not None:
@@ -292,6 +349,7 @@ def create_app(
                 await youtube_http.aclose()
             if kick_http:
                 await kick_http.aclose()
+            await learning.flush()
             await session_manager.end()
             await ollama.aclose()
             await asyncio.to_thread(engine.dispose)

@@ -80,6 +80,10 @@ class SchedulerConfig:
                 "gaming_question": Activity("gaming_question", Category.PROACTIVE_QUIET, s.proactive_question_min_s,
                                             s.proactive_question_max_s),
                 "trivia": Activity("trivia", Category.PROACTIVE_QUIZ, s.proactive_trivia_min_s, s.proactive_trivia_max_s),
+                # "screen": react to what the bot's eyes just saw. Only due while the eyes report a change it has not talked about yet.
+                "screen": Activity("screen", Category.PROACTIVE_HYPE, s.proactive_screen_min_s, s.proactive_screen_max_s),
+                # "buzz": bring up something people online are saying. Only due while there is something new GUY has not mentioned.
+                "buzz": Activity("buzz", Category.PROACTIVE_GENERAL, s.proactive_buzz_min_s, s.proactive_buzz_max_s),
             },
         )
 
@@ -188,6 +192,10 @@ class EngagementScheduler:
         self._states: dict[Platform, _PlatformState] = {}
         self._tick_lock = asyncio.Lock()
         self._last_sent_any: tuple[Platform, float] | None = None
+        self.screen_ready: Callable[[], bool] | None = None  # set by the application: has the picture changed since we last spoke of it?
+        self.screen_spoken: Callable[[], None] | None = None  # ... and: we just spoke about it
+        self.buzz_ready: Callable[[], bool] | None = None  # is there something new that people online are saying?
+        self.buzz_spoken: Callable[[], None] | None = None
         self.counters = {"sent": 0, "skipped": 0, "failed": 0}
 
     # ------------------------------------------------------------------ what the pipeline tells us
@@ -265,6 +273,10 @@ class EngagementScheduler:
         for name, activity in self.config.activities.items():
             if not activity.enabled or st.next_due.get(name, float("inf")) > now:
                 continue
+            if name == "screen" and not (self.screen_ready is not None and self.screen_ready()):
+                continue  # nothing new to react to
+            if name == "buzz" and not (self.buzz_ready is not None and self.buzz_ready()):
+                continue  # nothing new people are saying
             priority = self._personalities.best_priority(activity.category)
             if priority is None:  # no enabled personality handles it: nothing to say
                 continue
@@ -294,6 +306,10 @@ class EngagementScheduler:
             st.sent += 1
             self._last_sent_any = (platform, now)
             self.counters["sent"] += 1
+            if activity.name == "screen" and self.screen_spoken is not None:
+                self.screen_spoken()
+            if activity.name == "buzz" and self.buzz_spoken is not None:
+                self.buzz_spoken()
             logger.info("Proactive %s message sent on %s", activity.name, platform.value)
         elif action == "held":
             # Approval mode: the message waits for the streamer. For timing it counts as said, or the same activity would

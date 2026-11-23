@@ -20,6 +20,7 @@ from ..platforms.base import ConnectionState, PlatformAdapter, SendResult
 from ..services.approvals import ApprovalQueue, PendingReply
 from ..services.controls import RuntimeControls
 from ..services.statistics import Metrics
+from .angles import AnglePicker
 from .context import SessionContext
 from .filters import Classification, MessageFilter
 from .models import Category, ChatMessage, EventType, Platform
@@ -119,6 +120,9 @@ class ChatProcessor:
         self._last_voice: dict[tuple[str, str], tuple[str, float]] = {}  # who the bot last answered as, per viewer (conversations)
         self._task: asyncio.Task[None] | None = None
         self.activity: ActivityListener | None = None  # the proactive scheduler, set by the application
+        self.learning: Any = None  # LearningService (notes, feedback, what gets chat talking), set by the application
+        self.researcher: Any = None  # Researcher (looks up a question's key words), set by the application
+        self._angles = AnglePicker()  # what GUY brings up when it speaks first
         self.approvals = ApprovalQueue(settings.approval_queue_max, settings.approval_timeout_s, clock)
 
     # ------------------------------------------------------------------ queue / worker
@@ -221,6 +225,8 @@ class ChatProcessor:
             return ProcessResult("ignored", reason="stale_in_queue", **base)
         if cls.category in _CONTEXT_CATEGORIES:
             self._ctx.add_chat(msg.username, msg.message)
+        if self.learning is not None:
+            self.learning.on_viewer(msg, cls.category)
         if self._controls.outgoing_paused:
             return ProcessResult("paused", reason="outgoing_paused", **base)
         blocked = self._gate(msg)
@@ -264,14 +270,20 @@ class ChatProcessor:
         if profile is None:
             return None
         if self._controls.ai_enabled and self._s.ai_enabled:
+            viewer_note = self.learning.note_for(msg) if self.learning is not None else None
             try:
+                if self.researcher is not None and cls.category is Category.QUESTION:
+                    self._ctx.lookup_note = await self.researcher.lookup(msg.message) or ""  # skipped when off, too soon, or too slow
                 gen = await self._generator.generate(
                     profile, cls.category, platform=msg.platform.value, username=msg.username,
                     message=msg.message, is_new_viewer=is_new, is_streamer=msg.is_streamer, is_voice=msg.via_voice,
+                    viewer_note=viewer_note,
                 )
                 return _Reply(gen.text, profile.name, "ai", gen.model, gen.latency_ms)
             except GenerationFailed as exc:
                 logger.info("AI reply unavailable (%s); using rule-based fallback", exc.reason)
+            finally:
+                self._ctx.lookup_note = ""  # it belonged to this one question
         self._metrics.inc("rule_fallbacks")
         text = self._rules.fallback_reply(cls.category, msg.username, self._recent.all())
         return _Reply(text, profile.name, "rule")
@@ -343,6 +355,8 @@ class ChatProcessor:
             self._last_voice = {k: v for k, v in self._last_voice.items() if v[1] >= cutoff}
         self._recent.add(platform, text)
         self._ctx.add_chat(self._s.bot_display_name, text, is_bot=True)
+        if self.learning is not None:
+            self.learning.on_bot(platform_enum, text, reply.personality, reply.source)
         if reply.personality:
             self._personalities.mark_used(reply.personality)
         await self._repo.add_chat_message(
@@ -463,6 +477,7 @@ class ChatProcessor:
         if profile is None:
             return self._skip("no_personality_ready", category)
         if self._controls.ai_enabled and self._s.ai_enabled:
+            self._ctx.angle = self._angles.pick(self._ctx, prefer="screen" if category is Category.PROACTIVE_HYPE else None) or ""
             try:
                 gen = await self._generator.generate(
                     profile, category, platform=platform, username=None, message=None,
@@ -471,6 +486,8 @@ class ChatProcessor:
             except GenerationFailed as exc:
                 logger.info("Proactive AI message unavailable (%s); trying a prepared one", exc.reason)
                 reply = None
+            finally:
+                self._ctx.angle = ""  # it belonged to this one message
         else:
             reply = None
         if reply is None:

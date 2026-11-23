@@ -43,6 +43,7 @@ class PersonalityManager:
         self._clock = clock
         self._rng = rng or random.Random()
         self._last_used: dict[str, float] = {}
+        self.weight_of: Callable[[str], float] | None = None  # set by the application: how well a character's messages get answered
 
     def all(self) -> list[PersonalityProfile]:
         return list(self._profiles.values())
@@ -79,7 +80,8 @@ class PersonalityManager:
             pool = [min(candidates, key=lambda p: self._last_used.get(p.name, float("-inf")))]
         else:
             return None
-        return self._rng.choices(pool, weights=[p.frequency for p in pool], k=1)[0]
+        learned = self.weight_of or (lambda _name: 1.0)
+        return self._rng.choices(pool, weights=[p.frequency * learned(p.name) for p in pool], k=1)[0]
 
     def best_priority(self, category: Category) -> int | None:
         """Highest priority among the enabled personalities that handle ``category`` (cooldowns ignored), or None if

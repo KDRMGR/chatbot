@@ -240,7 +240,8 @@ async def test_timers_restart_after_a_reconnect(make_sched):
     assert await c.scheduler.tick() == []
     await sim.start(None)
     assert await c.scheduler.tick() == []
-    assert min(c.scheduler.status()["platforms"]["simulator"]["next_in_s"].values()) >= 480
+    timers = c.scheduler.status()["platforms"]["simulator"]["next_in_s"]
+    assert min(v for k, v in timers.items() if k not in ("screen", "buzz")) >= 480 and timers["screen"] >= 90 and timers["buzz"] >= 150  # the screen timer restarts too (shorter by design)
 
 
 async def test_two_platforms_are_staggered_and_write_different_messages(make_sched):
@@ -316,7 +317,7 @@ async def test_scheduler_routes_need_the_key_and_status_has_the_documented_shape
     for method, path in [("get", "/api/scheduler"), ("post", "/api/scheduler/settings"), ("post", "/api/control/proactive")]:
         assert (await getattr(client, method)(path, headers={"X-API-Key": ""})).status_code == 401
     data = (await client.get("/api/scheduler")).json()
-    assert data["enabled"] is True and set(data["settings"]["activities"]) == {"general", "gaming_question", "trivia"}
+    assert data["enabled"] is True and set(data["settings"]["activities"]) == {"general", "gaming_question", "trivia", "screen", "buzz"}
     platform = data["platforms"]["simulator"]
     assert platform["connected"] is True and platform["may_speak_now"] is False and platform["quiet_for_s"] == 0
     assert (await client.get("/api/status")).json()["controls"]["proactive_enabled"] is True
