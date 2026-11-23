@@ -693,7 +693,7 @@ function renderTalk(st, online) {
   if (!sayEnabled()) note = "Voice replies are not switched on yet: the bot would refuse them. You can already test the microphone, but Send is off.";
   else if (!online) note = "The bot is offline.";
   else if (!SR) note = "This browser has no speech recognition: type the message instead (Chrome or Edge work).";
-  else note = "Hold the button while you speak and let go when you are done. The bot answers in chat as if replying to what you said (your words are not posted). The browser sends your audio to its vendor's speech service.";
+  else note = "Hold the button (or the Space bar) while you speak and let go when you are done. The bot answers in chat as if replying to what you said (your words are not posted). The browser sends your audio to its vendor's speech service.";
   $("talk-note").textContent = note;
   if (!sayEnabled() && SR) $("btn-hold").disabled = false; // allow a microphone test
 }
@@ -843,6 +843,25 @@ function wire() {
     for (const ev of ["pointerup", "pointercancel", "lostpointercapture"]) hold.addEventListener(ev, endHold);
     hold.addEventListener("keydown", (e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); startHold(); } });
     hold.addEventListener("keyup", (e) => { if (e.key === " " || e.key === "Enter") endHold(); });
+
+    // Push-to-talk on the Space bar. It never steals a space that is being typed (text boxes, menus). On the talk screen it works wherever
+    // the focus is; on the admin page, which is full of buttons, only when nothing else has the focus, so Space still presses a focused button there.
+    const typing = (t) => t instanceof HTMLElement && (t.matches("input, textarea, select") || t.isContentEditable);
+    const takesSpace = (t) => (PAGE === "streamer" ? !typing(t) : t === document.body || t === hold);
+    let spaceDown = false;  // this Space press is ours (push-to-talk), so its release is too
+    document.addEventListener("keydown", (e) => {
+      if (e.code !== "Space" || e.ctrlKey || e.altKey || e.metaKey || !takesSpace(e.target)) return;
+      e.preventDefault();  // no page scroll, and no click on a button that still has the focus
+      spaceDown = true;
+      if (!e.repeat && !hold.disabled) startHold();
+    });
+    document.addEventListener("keyup", (e) => {
+      if (e.code !== "Space" || !spaceDown) return;
+      e.preventDefault();  // even when the microphone did not start, the release must not click a focused button
+      spaceDown = false;
+      endHold();
+    });
+    document.addEventListener("visibilitychange", () => { if (document.hidden) endHold(); });
   }
   window.addEventListener("blur", endHold);
   on("btn-send-say", "click", sendSay);

@@ -1,4 +1,4 @@
-# Online panel through Supabase (Vercel-hosted web page, login with roles)
+﻿# Online panel through Supabase (Vercel-hosted web page, login with roles)
 
 **Status (2026-11-22):**
 - **Done and verified live:** the schema is applied to the Supabase project `chatbot` (3 tables, row-level security, grants); sign-ups
@@ -52,6 +52,7 @@ sets them. Signing up must be switched off in the project, so strangers cannot e
 `remove_stream`, `stream_settings`, `set_topic` (also for another stream via `target_id`, and `news`), `set_language`, and `say` (streamer/admin; voice replies are switched on).
 
 ## Hold-to-speak (built; the microphone itself is untested)
+**Push-to-talk on the Space bar:** hold Space anywhere on the talk screen (/streamer) instead of the button. It never steals a space you are typing (text boxes, menus), ignores Ctrl/Alt combinations, and on the admin page only works when nothing else has the focus, so Space still presses a focused button there. Releasing the bar, switching tab or leaving the window ends it.
 The streamer holds the button on the page and speaks; the browser's speech recognition turns it into text, which is sent as a `say`
 command. **What the bot does with it (decided: "option b"):** the text goes through the normal pipeline as a message **from the
 streamer** (not posted under any account), so the bot answers it in chat like part of a conversation: "I said it, the viewers heard me,
