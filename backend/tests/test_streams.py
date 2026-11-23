@@ -11,7 +11,7 @@ import pytest
 
 from app.platforms.base import ConnectionState, ConnectionStatus
 from app.streams.choose import DOWN_PROBES, Live, TargetState, choose, observe
-from app.streams.director import StreamDirector
+from app.streams.director import StreamDirector, combine_live
 from app.streams.model import (
     MAX_TARGETS, StreamsConfig, StreamsError, StreamTarget, detect_platform, parse_kick_ref, parse_youtube_ref,
 )
@@ -881,3 +881,28 @@ async def test_snapshot_marks_unknown_offline_and_live_differently():
     await rig.director.tick()
     assert row()["live"] is True and row()["active"] is True and row()["offline_s"] is None
     assert json.dumps(rig.director.snapshot())  # serialisable
+
+
+# ---------------------------------------------------------------------------- is the channel live? (the scheduler's gate)
+@pytest.mark.parametrize("checked,remembered,expected", [
+    (True, False, True), (True, None, True), (False, True, True),  # the adapter's flag can be minutes old: a live opinion wins
+    (False, False, False), (False, None, False),  # offline only when the fresh check says so
+    (None, False, None), (None, None, None), (None, True, True),  # no fresh check: an adapter that says "offline" must not silence the bot
+])
+def test_two_opinions_on_whether_the_channel_is_live_are_combined_so_that_unknown_never_silences(checked, remembered, expected):
+    assert combine_live(checked, remembered) is expected
+
+
+async def test_the_director_knows_whether_the_stream_it_is_in_is_live_from_its_own_fresh_checks():
+    rig = await make_rig(youtube=False)
+    assert rig.director.live_for("kick") is None  # nothing checked yet
+    rig.kick.channels = {"defaultchan": True}
+    await rig.director.tick()
+    assert rig.director.live_for("kick") is True and rig.director.live_for("youtube") is None
+    rig.kick.channels = {"defaultchan": False}
+    for _ in range(DOWN_PROBES + 1):
+        await rig.director.tick()
+    assert rig.director.live_for("kick") is False
+    rig.kick.lookup_error = RuntimeError("kick is down")
+    await rig.director.tick()
+    assert rig.director.live_for("kick") is None  # a failed check says nothing

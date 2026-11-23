@@ -45,7 +45,7 @@ from .platforms.youtube.api import YouTubeApi
 from .platforms.youtube.credentials import YouTubeAuth
 from .platforms.youtube.quota import QuotaTracker
 from .scheduler.engagement import EngagementScheduler
-from .streams.director import StreamDirector
+from .streams.director import StreamDirector, combine_live
 from .knowledge.topic import TopicBriefing
 from .knowledge.research import Researcher
 from .knowledge.social import REDDIT_KEY, SocialBuzz
@@ -267,8 +267,11 @@ def create_app(
         scheduler.buzz_ready, scheduler.buzz_spoken = social.has_new, social.consume
 
         def channel_is_live(platform: Platform) -> bool | None:
+            """Live if the stream director OR the adapter says so (an adapter's own flag can be minutes old, which once kept GUY silent
+            in a live channel); offline only when the director says so and the adapter does not say live; otherwise unknown."""
             details = getattr(adapters.get(platform), "details", None)
-            return details().get("is_live") if callable(details) else None
+            remembered = details().get("is_live") if callable(details) else None
+            return combine_live(director.live_for(platform.value), remembered)
 
         scheduler.is_live = channel_is_live  # unprompted messages only go to a channel that is live
 

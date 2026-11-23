@@ -144,6 +144,15 @@ class StreamDirector:
             await self._log_changes(decisions)
             await self._update_focus()
 
+    def live_for(self, platform: str) -> bool | None:
+        """Is the stream the bot is in on this platform live? From the director's own checks (made every minute), so it is fresher than
+        what an adapter remembers. None = not known (no stream chosen, not checked yet, or the check failed)."""
+        target_id = (self.decisions.get(platform).target_id if self.decisions.get(platform) else None)
+        state = self.states.get(target_id) if target_id else None
+        if state is None or state.checked_at is None or state.error is not None:
+            return None
+        return bool(state.live)
+
     def focus_id(self) -> str | None:
         """The stream the bot is "in" right now: the one you selected if the bot is there, else the first on the list that is
         active. Its topic and chat memory are the ones in use."""
@@ -495,6 +504,14 @@ class StreamDirector:
             "last_check_s_ago": None if self.last_tick_at is None else round(now - self.last_tick_at),
             "limits": {"max_streams": MAX_TARGETS, "kinds": {k: list(v) for k, v in KINDS.items()}},
         }
+
+
+def combine_live(checked: bool | None, remembered: bool | None) -> bool | None:
+    """Two opinions on whether a channel is live: the director's own check (fresh, every minute) and what the adapter remembers (can be
+    minutes old). Live if either says so; offline only when the fresh check says so; otherwise unknown. Unknown never silences the bot."""
+    if checked is True or remembered is True:
+        return True
+    return False if checked is False else None
 
 
 class _Failed(Exception):
