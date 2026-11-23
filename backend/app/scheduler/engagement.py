@@ -194,6 +194,7 @@ class EngagementScheduler:
         self._last_sent_any: tuple[Platform, float] | None = None
         self.screen_ready: Callable[[], bool] | None = None  # set by the application: has the picture changed since we last spoke of it?
         self.screen_spoken: Callable[[], None] | None = None  # ... and: we just spoke about it
+        self.is_live: Callable[[Platform], bool | None] | None = None  # is the channel live? (None = unknown). Nobody is talked to in an empty chat.
         self.buzz_ready: Callable[[], bool] | None = None  # is there something new that people online are saying?
         self.buzz_spoken: Callable[[], None] | None = None
         self.counters = {"sent": 0, "skipped": 0, "failed": 0}
@@ -257,6 +258,9 @@ class EngagementScheduler:
             now = self._clock()
             if adapter.status().state is not ConnectionState.CONNECTED:
                 st.needs_reset = True  # timers restart when it comes back
+                continue
+            if self.is_live is not None and self.is_live(platform) is False:
+                st.needs_reset = True  # an offline channel: say nothing, and start the timers fresh when it goes live
                 continue
             if st.needs_reset:
                 self._reset(st, now, index)

@@ -525,18 +525,41 @@ function renderPower(st, online) {
   if (!st || !online) { b.disabled = true; b.className = "power-btn"; b.textContent = "GUY is offline"; return; }
   const mode = powerMode(st);
   b.disabled = false;
+  if (mode !== "off" && streamSwitchedOff(st)) {
+    b.className = "power-btn half";
+    b.textContent = "GUY is ON but not in any stream: its stream is switched off (click to switch it on)";
+    return;
+  }
   b.className = `power-btn ${mode === "on" ? "on" : mode === "half" ? "half" : ""}`;
   b.textContent = mode === "on" ? "GUY is ON: replying and joining in (click to turn off)"
     : mode === "half" ? "GUY is ON: replying only, not starting conversations (click to turn off)"
     : "GUY is OFF: silent (click to turn on)";
 }
 
+/* The bot's own stream entries that were switched off (Switch off in the list): GUY is then connected to nothing, whatever the big switch says. */
+function disabledOwnStreams(st) {
+  return ((st && st.streams && st.streams.targets) || []).filter((t) => t.kind === "own" && !t.enabled);
+}
+function streamSwitchedOff(st) {
+  return !focusOf(st) && disabledOwnStreams(st).length > 0;
+}
+
 async function togglePower() {
   const st = latest && latest.data;
+  if (powerMode(st) !== "off" && streamSwitchedOff(st)) {  // on, but connected to nothing: reconnect instead of turning off
+    for (const t of disabledOwnStreams(st)) {
+      const entry = await send("update_stream", { id: t.id, enabled: true });
+      sayAndHold("controls-msg", entry.ok ? "Stream switched on: GUY reconnects in a few seconds." : entry.text, entry.ok ? "ok" : "error");
+    }
+    return;
+  }
   const turnOff = powerMode(st) !== "off";
   const first = await send(turnOff ? "pause" : "resume");
   if (!first.ok) { sayAndHold("controls-msg", first.text, "error"); return; }
   const second = await send("set_proactive", { enabled: !turnOff });
+  if (!turnOff) {  // turning GUY on also reconnects a stream that was switched off
+    for (const t of disabledOwnStreams(st)) await send("update_stream", { id: t.id, enabled: true });
+  }
   sayAndHold("controls-msg", second.ok ? (turnOff ? "GUY is off: it will not say anything." : "GUY is on: replying and joining in.") : second.text, second.ok ? "ok" : "error");
 }
 

@@ -378,3 +378,18 @@ async def test_the_panel_can_refresh_the_social_buzz_and_sees_it(make_app_client
     assert (await client.get("/api/social")).status_code == 200
     client.headers.pop("X-API-Key")
     assert (await client.get("/api/social")).status_code == 401
+
+
+async def test_nobody_is_talked_to_in_an_offline_channel_and_the_timers_start_fresh_when_it_goes_live(make_sched):
+    client, app, c, sim, clock = await make_sched()
+    live = [False]
+    c.scheduler.is_live = lambda platform: live[0]
+    clock.advance(5000)  # every timer has long run out
+    assert await c.scheduler.tick() == [] and list(sim.sent) == []  # the channel is offline: silence
+    live[0] = True
+    assert await c.scheduler.tick() == []  # it just went live: no backlog of "due" messages
+    clock.advance(800)
+    assert [a["action"] for a in await c.scheduler.tick()] == ["replied"]  # a normal round once it has been live for a while
+    c.scheduler.is_live = lambda platform: None  # unknown (YouTube has no flag): not a reason to stay silent
+    clock.advance(5000)
+    assert await c.scheduler.tick() != []

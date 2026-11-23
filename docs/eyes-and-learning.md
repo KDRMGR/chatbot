@@ -119,3 +119,5 @@ example `qwen3.5:9b`, 6.6 GB) would have to live partly in RAM, run at roughly 6
 and leave Windows short of memory: not safe on this PC. `gemma3:4b` is the best model that fits the card completely. The extra
 "smartness" therefore comes from what the bot knows and does (eyes, notes, social knowledge, angles, learning), not from a bigger model.
 If you later free memory or get a larger graphics card, bigger models are one setting away.
+
+* **Unprompted messages only go to a channel that is live** (the Kick live flag; unknown, as on YouTube, does not silence it): with participation this frequent, GUY must not talk into an empty chat. The timers restart fresh when the channel goes live. And **turning GUY on from the big switch also reconnects a stream that was switched off** in the list (that is what had left it disconnected overnight).

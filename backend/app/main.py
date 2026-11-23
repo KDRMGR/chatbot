@@ -265,6 +265,12 @@ def create_app(
         scheduler.screen_ready, scheduler.screen_spoken = vision.has_change, vision.consume_change
         scheduler.buzz_ready, scheduler.buzz_spoken = social.has_new, social.consume
 
+        def channel_is_live(platform: Platform) -> bool | None:
+            details = getattr(adapters.get(platform), "details", None)
+            return details().get("is_live") if callable(details) else None
+
+        scheduler.is_live = channel_is_live  # unprompted messages only go to a channel that is live
+
         async def save_streams(config_dict: dict[str, Any]) -> None:
             await repo.set_setting("streams.config", json.dumps(config_dict), now_utc())
 
